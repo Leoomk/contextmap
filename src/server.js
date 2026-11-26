@@ -433,14 +433,14 @@ SUA MISSÃO COMO CONSULTOR:
   });
   
   app.listen(3000, () => {
-    console.error('🌐 Interface do MAPACONTEXTO 5.0 rodando em http://localhost:3000');
+    console.error('🌐 ContextMap 5.0 Dashboard running at http://localhost:3000');
   });
 
   // --------------------------------------------------------------------------
-  // INICIALIZAÇÃO DO SERVIDOR MCP (Ouvidos da IA - MAPACONTEXTO 5.0)
+  // INICIALIZAÇÃO DO SERVIDOR MCP (Ouvidos da IA - ContextMap 5.0)
   // --------------------------------------------------------------------------
   const server = new McpServer({
-    name: "MAPACONTEXTO",
+    name: "ContextMap",
     version: "5.0.0",
   });
 
@@ -469,7 +469,7 @@ SUA MISSÃO COMO CONSULTOR:
     if (!alvo && fs.existsSync(path.join(process.cwd(), 'package.json'))) {
       try {
         const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
-        if (pkg.name !== 'mapacontexto') {
+        if (pkg.name !== 'contextmap' && pkg.name !== 'mapacontexto') {
           alvo = process.cwd();
         }
       } catch (e) {}

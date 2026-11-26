@@ -1,5 +1,5 @@
 {
-  "name": "mapacontexto",
+  "name": "contextmap",
   "version": "5.0.0",
   "description": "Local AST-powered Context Map & MCP Server for AI coding assistants — cuts token waste, maps domino effects, detects recurring AI bugs, and enforces surgical planning before coding.",
   "main": "index.js",
@@ -25,12 +25,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/leoomk/mapacontexto.git"
+    "url": "https://github.com/leoomk/contextmap.git"
   },
   "bugs": {
-    "url": "https://github.com/leoomk/mapacontexto/issues"
+    "url": "https://github.com/leoomk/contextmap/issues"
   },
-  "homepage": "https://github.com/leoomk/mapacontexto#readme",
+  "homepage": "https://github.com/leoomk/contextmap#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "express": "^5.2.1",
