@@ -45,6 +45,10 @@ import {
   atualizarItemChecklist,
   prepararContextoMudancaEspecifica
 } from './checklistManager.js';
+import {
+  obterCatalogoLocalizado,
+  obterChecklistLocalizado
+} from './i18nCatalogEn.js';
 
 // A nossa RAM Global que segurará o Grafo, os Arquivos e os Relatórios Mapeados
 export const globalMemory = {
@@ -213,20 +217,27 @@ export async function iniciarServidor() {
   });
 
   app.get('/api/pick-folder', (req, res) => {
-    const psScript = `
-      Add-Type -AssemblyName System.windows.forms;
-      $f = New-Object System.Windows.Forms.FolderBrowserDialog;
-      $f.Description = 'Selecione a pasta do projeto para o MAPACONTEXTO';
-      $f.ShowNewFolderButton = $false;
-      if($f.ShowDialog() -eq 'OK'){ Write-Output $f.SelectedPath }
-    `;
-    
-    exec(`powershell -STA -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, (erro, stdout) => {
-      if (erro) {
-        return res.status(500).json({ erro: 'Falha ao abrir a janela' });
-      }
-      res.json({ caminho: stdout.trim() });
-    });
+    if (process.platform === 'win32') {
+      const psScript = `
+        Add-Type -AssemblyName System.windows.forms;
+        $f = New-Object System.Windows.Forms.FolderBrowserDialog;
+        $f.Description = 'Select a project folder for ContextMap';
+        $f.ShowNewFolderButton = $false;
+        if($f.ShowDialog() -eq 'OK'){ Write-Output $f.SelectedPath }
+      `;
+      return exec(`powershell -STA -NoProfile -Command "${psScript.replace(/\n/g, ' ')}"`, (erro, stdout) => {
+        if (erro) return res.status(500).json({ erro: 'Failed to open folder picker' });
+        res.json({ caminho: stdout.trim() });
+      });
+    }
+    if (process.platform === 'darwin') {
+      return exec(`osascript -e 'POSIX path of (choose folder with prompt "Select a project folder for ContextMap")'`, (erro, stdout) => {
+        if (erro) return res.json({ caminho: '' });
+        res.json({ caminho: stdout.trim() });
+      });
+    }
+    // Linux / other OS: ask user to paste folder path directly
+    return res.json({ caminho: '', aviso: 'Paste the absolute folder path into the input field above.' });
   });
 
   app.get('/api/grafo', (req, res) => {
@@ -298,14 +309,16 @@ export async function iniciarServidor() {
   });
 
   // --------------------------------------------------------------------------
-  // ROTAS DO POSTO DE VACINAS E CONSTRUTOR (MAPACONTEXTO 5.0)
+  // VACCINES & CANONICAL BLUEPRINTS ROUTES
   // --------------------------------------------------------------------------
   app.get('/api/vacinas', (req, res) => {
+    const lang = req.query.lang === 'pt' ? 'pt' : 'en';
     const recomendadas = recomendarVacinasParaProjeto(globalMemory.files, globalMemory.relatorioSaude);
+    const localizado = obterCatalogoLocalizado(lang, CATEGORIAS_VACINAS, VACINAS_CATALOGO, SUPER_BLOCOS_CATALOGO);
     res.json({
-      categorias: CATEGORIAS_VACINAS,
-      vacinas: VACINAS_CATALOGO,
-      blocos: SUPER_BLOCOS_CATALOGO,
+      categorias: localizado.categorias,
+      vacinas: localizado.vacinas,
+      blocos: localizado.blocos,
       recomendadas,
       projetoAtivo: globalMemory.projetoAtual
     });
@@ -334,8 +347,8 @@ export async function iniciarServidor() {
 
   app.post('/api/gerar-prompt-vacinas', (req, res) => {
     try {
-      const { idsVacinas = [], idsBlocos = [] } = req.body;
-      const prompt = gerarPromptTextoBlindado(idsVacinas, idsBlocos);
+      const { idsVacinas = [], idsBlocos = [], lang = 'en' } = req.body;
+      const prompt = gerarPromptTextoBlindado(idsVacinas, idsBlocos, lang);
       res.json({ sucesso: true, prompt });
     } catch (err) {
       res.status(500).json({ erro: err.message });
@@ -343,26 +356,27 @@ export async function iniciarServidor() {
   });
 
   // --------------------------------------------------------------------------
-  // ROTAS DO CHECKLIST PERSISTENTE E ANÁLISE DE MUDANÇA ESPECÍFICA
+  // PERSISTENT CHECKLIST & TARGETED CHANGE ROUTES
   // --------------------------------------------------------------------------
   app.get('/api/checklist', (req, res) => {
     if (!globalMemory.projetoAtual) {
       return res.status(400).json({ erro: 'Nenhum projeto analisado ativo no momento.' });
     }
     try {
+      const lang = req.query.lang === 'pt' ? 'pt' : 'en';
       const checklist = obterOuCriarChecklist(
         globalMemory.projetoAtual,
         globalMemory.relatorioSaude,
         globalMemory.files
       );
-      res.json(checklist);
+      res.json(obterChecklistLocalizado(lang, checklist));
     } catch (err) {
       res.status(500).json({ erro: err.message });
     }
   });
 
   app.post('/api/checklist/atualizar', (req, res) => {
-    const { itemId, status, observacao } = req.body;
+    const { itemId, status, observacao, lang = 'en' } = req.body;
     if (!globalMemory.projetoAtual) {
       return res.status(400).json({ erro: 'Nenhum projeto analisado ativo.' });
     }
@@ -376,14 +390,14 @@ export async function iniciarServidor() {
         status,
         observacao || ''
       );
-      res.json({ sucesso: true, checklist });
+      res.json({ sucesso: true, checklist: obterChecklistLocalizado(lang, checklist) });
     } catch (err) {
       res.status(400).json({ erro: err.message });
     }
   });
 
   app.post('/api/analisar-mudanca', (req, res) => {
-    const { descricaoMudanca, arquivoAlvo } = req.body;
+    const { descricaoMudanca, arquivoAlvo, lang = 'en' } = req.body;
     if (!globalMemory.projetoAtual) {
       return res.status(400).json({ erro: 'Nenhum projeto ativo.' });
     }
@@ -401,7 +415,13 @@ export async function iniciarServidor() {
       arquivosMemoria: globalMemory.files
     });
 
-    const promptParaIA = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+    const checklistLoc = obterChecklistLocalizado(lang, obterOuCriarChecklist(globalMemory.projetoAtual, globalMemory.relatorioSaude, globalMemory.files));
+    const itensDecididosLoc = (checklistLoc?.itens || [])
+      .filter(i => i.status === 'feito' || i.status === 'ignorado')
+      .map(i => `${i.icone} ${i.titulo} (${lang === 'pt' ? (i.status === 'feito' ? 'JÁ FEITO' : 'DEIXAR COMO ESTÁ') : (i.status === 'feito' ? 'ALREADY DONE' : 'LEAVE AS IS')})`);
+
+    const promptParaIA = lang === 'pt'
+      ? `IA, você é o Arquiteto de Software Consultor do meu projeto.
 Preciso que você analise uma MUDANÇA ESPECÍFICA no meu sistema sem gastar tempo nem tokens reavaliando itens antigos.
 
 🎯 MUDANÇA SOLICITADA:
@@ -411,7 +431,7 @@ Arquivo de partida da alteração: '${alvo}'
 📌 STATUS DA VISTORIA INICIAL DO MEU PROJETO (CHECKLIST):
 - Total de itens auditados: ${contexto.totaisChecklist.total} (${contexto.totaisChecklist.feitos} já feitos, ${contexto.totaisChecklist.ignorados} decididos deixar como estão, ${contexto.totaisChecklist.pendentes} pendentes)
 - Itens já resolvidos ou que decidi NÃO mexer (NÃO REAVALIE NEM MEXA NELES):
-${contexto.itensJaDefinidosResumo.map(i => `  ✓ ${i}`).join('\n') || '  (Nenhum definido ainda)'}
+${itensDecididosLoc.map(i => `  ✓ ${i}`).join('\n') || '  (Nenhum definido ainda)'}
 
 🔍 RAIO DE IMPACTO DA MUDANÇA (EFEITO DOMINÓ CIRÚRGICO):
 - Telas/Arquivos dependentes que podem ser afetados por '${alvo}':
@@ -423,7 +443,30 @@ SUA MISSÃO COMO CONSULTOR:
 1. FOQUE EXCLUSIVAMENTE nesta nova mudança solicitada. Não perca tempo sugerindo alterações em itens que já foram resolvidos ou descartados no checklist acima.
 2. Me explique em português simples: como essa funcionalidade será adicionada sem quebrar as outras telas do sistema?
 3. Se houver algum risco de quebrar os arquivos dependentes citados acima, me mostre o passo a passo seguro.
-4. NÃO ALTERE NENHUMA LINHA DE CÓDIGO AGORA. Aguarde minha decisão após ler seu parecer.`;
+4. NÃO ALTERE NENHUMA LINHA DE CÓDIGO AGORA. Aguarde minha decisão após ler seu parecer.`
+      : `AI, you are the Consulting Software Architect for my project.
+I need a SURGICAL PLAN for a SPECIFIC CHANGE without wasting tokens re-auditing past decisions.
+
+🎯 REQUESTED CHANGE:
+"${descricaoMudanca}"
+Primary entry file: '${alvo}'
+
+📌 PROJECT INSPECTION CHECKLIST STATUS:
+- Audited items: ${contexto.totaisChecklist.total} (${contexto.totaisChecklist.feitos} done, ${contexto.totaisChecklist.ignorados} left as is, ${contexto.totaisChecklist.pendentes} pending)
+- Already resolved or intentionally skipped items (DO NOT RE-AUDIT OR SUGGEST CHANGES TO THESE):
+${itensDecididosLoc.map(i => `  ✓ ${i}`).join('\n') || '  (None decided yet)'}
+
+🔍 SURGICAL BLAST RADIUS (DOMINO EFFECT):
+- Dependent files/screens that may break if '${alvo}' changes:
+  ${contexto.dominoCirurgico.ascendentesQueQuebram.length > 0 ? contexto.dominoCirurgico.ascendentesQueQuebram.join(', ') : 'None (isolated, safe change)'}
+- Supporting dependencies:
+  ${contexto.dominoCirurgico.descendentesNecessarios.length > 0 ? contexto.dominoCirurgico.descendentesNecessarios.join(', ') : 'None'}
+
+YOUR MISSION AS CONSULTING ARCHITECT:
+1. FOCUS EXCLUSIVELY on the requested change above. Do not waste tokens suggesting refactors for items already marked DONE or LEAVE AS IS.
+2. Explain clearly how you will implement this change without breaking any dependent files.
+3. Outline the safest step-by-step plan.
+4. DO NOT EDIT ANY CODE YET. Wait for my approval after I read your plan.`;
 
     res.json({
       sucesso: true,
@@ -574,7 +617,7 @@ SUA MISSÃO COMO CONSULTOR:
     "mc_buscar_contexto",
     "Pesquisa instantânea de termos, funções, tabelas ou regras de negócio no projeto sem precisar ler arquivos no escuro.",
     { 
-      termo: z.string().describe("Termo de pesquisa (ex: 'pagamento', 'usuarios', 'auth', 'deleteMatch')"),
+      termo: z.string().describe("Search term (e.g. 'payment', 'users', 'auth', 'deleteOrder')"),
       caminho_projeto: z.string().optional().describe("Caminho do projeto caso ainda não esteja carregado")
     },
     async ({ termo, caminho_projeto }) => {

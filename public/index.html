@@ -1048,12 +1048,26 @@
       }
     }
 
+    function getCurrentLang() {
+      return localStorage.getItem('contextmap_lang') || 'en';
+    }
+    function getLocaleCode() {
+      return getCurrentLang() === 'pt' ? 'pt-BR' : 'en-US';
+    }
+    function formatDateTime(tsOrIso) {
+      const d = new Date(tsOrIso);
+      const loc = getLocaleCode();
+      return getCurrentLang() === 'pt'
+        ? d.toLocaleDateString(loc) + ' às ' + d.toLocaleTimeString(loc)
+        : d.toLocaleDateString(loc) + ' at ' + d.toLocaleTimeString(loc);
+    }
+
     // -------------------------------------------------------------------------
-    // LÓGICA DO CONSTRUTOR DE VACINAS E SUPER-BLOCOS (v5.0)
+    // VACCINES & CANONICAL BLUEPRINTS LOGIC
     // -------------------------------------------------------------------------
     async function carregarConstrutorVacinas() {
       try {
-        const resp = await fetch('/api/vacinas');
+        const resp = await fetch('/api/vacinas?lang=' + getCurrentLang());
         const dados = await resp.json();
         catalogoVacinasCache = dados;
 
@@ -1363,7 +1377,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             idsVacinas: idsVac,
-            idsBlocos: idsBloc
+            idsBlocos: idsBloc,
+            lang: getCurrentLang()
           })
         });
         const res = await resp.json();
@@ -1471,34 +1486,36 @@
       }
     }
 
-    // Tradutor e Agrupador de Domínios de Negócio (Bairros da Cidade)
+    // Universal Business Domain Grouper (Bilingual EN / PT-BR)
     function obterDominioDeNegocio(caminhoArquivo) {
        const str = (caminhoArquivo || '').toLowerCase();
-       if (str.includes('hub') || str.includes('compra') || str.includes('cotacao') || str.includes('supplier') || str.includes('fornecedor')) {
-         return '🛒 Compras, Cotações & Fornecedores';
+       const isPt = getCurrentLang() === 'pt';
+       if (str.includes('hub') || str.includes('order') || str.includes('cart') || str.includes('compra') || str.includes('supplier') || str.includes('fornecedor')) {
+         return isPt ? '🛒 Pedidos & Fornecedores' : '🛒 Orders & Suppliers';
        }
-       if (str.includes('obra') || str.includes('projeto') || str.includes('budget') || str.includes('etapa')) {
-         return '🏗️ Orçamentos & Gestão de Obras';
+       if (str.includes('project') || str.includes('projeto') || str.includes('budget') || str.includes('task') || str.includes('board')) {
+         return isPt ? '🏗️ Projetos & Orçamentos' : '🏗️ Projects & Budgets';
        }
        if (str.includes('admin') || str.includes('user') || str.includes('role') || str.includes('permission') || str.includes('organization') || str.includes('auth') || str.includes('login')) {
-         return '🔐 Administração, Usuários & Permissões';
+         return isPt ? '🔐 Administração, Usuários & Permissões' : '🔐 Admin, Users & Permissions';
        }
-       if (str.includes('relatorio') || str.includes('report') || str.includes('extrato') || str.includes('drive')) {
-         return '📊 Relatórios, Extratos & Documentos';
+       if (str.includes('relatorio') || str.includes('report') || str.includes('export') || str.includes('pdf') || str.includes('doc')) {
+         return isPt ? '📊 Relatórios & Documentos' : '📊 Reports & Documents';
        }
-       if (str.includes('cliente')) {
-         return '👤 Portal do Cliente';
+       if (str.includes('client') || str.includes('customer') || str.includes('cliente')) {
+         return isPt ? '👤 Portal do Cliente' : '👤 Client Portal';
        }
-       if (str.includes('financeiro') || str.includes('pagamento') || str.includes('billing')) {
-         return '💰 Financeiro & Pagamentos';
+       if (str.includes('financ') || str.includes('payment') || str.includes('pagamento') || str.includes('billing') || str.includes('invoice') || str.includes('stripe')) {
+         return isPt ? '💰 Financeiro & Pagamentos' : '💰 Finance & Billing';
        }
-       return '⚙️ Geral & Infraestrutura';
+       return isPt ? '⚙️ Geral & Infraestrutura' : '⚙️ Core & Infrastructure';
     }
 
-    // Dossiê Consolidado Geral (Top Prioridades de todo o sistema)
+    // Full Consolidated Check-up Brief (EN / PT-BR)
     function copiarDossieConsolidado() {
-      if (!relatorioSaudeCache) return alert("Aguarde o carregamento do relatório de saúde.");
+      if (!relatorioSaudeCache) return alert(getCurrentLang() === 'pt' ? "Aguarde o carregamento do relatório de saúde." : "Please wait for the health report to finish loading.");
       const saude = relatorioSaudeCache;
+      const isPt = getCurrentLang() === 'pt';
       
       const godTop = (saude.arquivosDeus || []).slice(0, 3);
       const viloesTop = (saude.viloesCustoBanco || []).slice(0, 3);
@@ -1507,22 +1524,58 @@
       const autoUpd = saude.statusAtualizacaoApp || {};
       const modalArr = saude.statusModalArrasto || {};
 
-      let blocoAtualizacao = `🔄 5. SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA (SEM CTRL+F5):\n`;
-      if (autoUpd.temProtecao) {
-        blocoAtualizacao += `- ${autoUpd.statusResumo}\n- Encontrado em: ${(autoUpd.arquivosOndeFoiEncontrado || []).map(a => a.arquivo).join(', ')}`;
-      } else {
-        blocoAtualizacao += `- ${autoUpd.statusResumo || '🚨 AUSENTE: O app não avisa quando há nova atualização'}\n- Tecnologia detectada: ${autoUpd.tecnologiaDetectada || 'Web'}\n${autoUpd.instrucaoCompletaParaIA || ''}`;
-      }
+      let texto = '';
+      if (!isPt) {
+        const blocoAuto = autoUpd.temProtecao
+          ? `🔄 5. AUTO-UPDATE NOTIFICATION (NO CTRL+F5):\n- ✅ Protected (found in: ${(autoUpd.arquivosOndeFoiEncontrado || []).map(a => a.arquivo).join(', ')})`
+          : `🔄 5. AUTO-UPDATE NOTIFICATION (NO CTRL+F5):\n- 🚨 MISSING: Users stay stuck on stale cached builds after deploys.\n- Stack detected: ${autoUpd.tecnologiaDetectada || 'Web'}\n- Suggested entry file: ${autoUpd.arquivoEntradaSugerido || 'src/App.tsx'}\n- Recommended fix: Add version.json + visibilitychange polling with ?t=Date.now() + vite:preloadError reload listener + clean "Reload Now" banner.`;
 
-      let blocoModalArrasto = `🪟 6. JANELAS MODAIS FECHANDO SOZINHAS AO ARRASTAR TEXTO:\n`;
-      if (modalArr.temProblema) {
-        blocoModalArrasto += `- ${modalArr.statusResumo}\n${modalArr.instrucaoCompletaParaIA || ''}`;
-      } else {
-        blocoModalArrasto += `- ${modalArr.statusResumo || '✅ Nenhuma modal vulnerável detectada.'}`;
-      }
+        const blocoModal = modalArr.temProblema
+          ? `🪟 6. DRAG-CLOSE VULNERABLE MODALS:\n- 🚨 VULNERABLE (${modalArr.totalArquivosVulneraveis} file(s)): Modal backdrops use onClick instead of onMouseDown, closing unexpectedly when highlighting text and releasing outside.\n- Files: ${(modalArr.arquivosVulneraveis || []).map(a => `'${a.arquivo}' (L.${a.linhasVulneraveis.map(l => l.linha).join(', ')})`).join('; ')}\n- Fix: Replace backdrop onClick with onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}.`
+          : `🪟 6. DRAG-CLOSE VULNERABLE MODALS:\n- ✅ No vulnerable onClick modal backdrops detected.`;
 
-      let texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
-O Mapa Contexto realizou uma triagem profunda no meu aplicativo e isolou os pontos mais críticos do sistema.
+        texto = `AI, you are the Consulting Software Architect for my project.
+ContextMap performed a deep AST scan of my codebase and isolated the top architectural priorities.
+Please give me an INTEGRATED DIAGNOSTIC and triage BEFORE modifying any code:
+
+👑 1. CORE HUBS / GOD NODES (HIGHEST PAGERANK):
+${godTop.map(g => `- '${g.arquivo}' (PageRank: ${g.scorePageRank}/100 | ${g.dependentesDiretos} direct dependents)`).join('\n') || '- None'}
+
+💸 2. DATABASE COST & PERFORMANCE ALERTS:
+${viloesTop.map(v => `- '${v.arquivo}' (${v.totalConsultas} queries, tables: ${(v.tabelas || []).join(', ') || 'n/a'})`).join('\n') || '- None'}
+
+📝 3. LONG FORMS WITHOUT LOCAL DRAFT RECOVERY:
+${formsTop.map(f => `- '${f.arquivo}': ${f.totalInputs} inputs without localStorage draft cache`).join('\n') || '- None'}
+
+🏋️ 4. HEAVIEST FILES / MEMORY WEIGHT:
+${memTop.map(m => `- '${m.arquivo}' (${m.totalLinhas} lines)`).join('\n') || '- None'}
+
+${blocoAuto}
+
+${blocoModal}
+
+YOUR MISSION AS MY TRUSTED ARCHITECT:
+1. Explain clearly in plain English how these pieces connect in day-to-day usage.
+2. Perform a TRIAGE: which items are real risks worth fixing now, and which ones should we LEAVE AS IS because they work fine and touching them adds unnecessary risk?
+3. For recommended fixes, give me the safest step-by-step order without breaking user flows.
+4. DO NOT EDIT ANY CODE YET. Wait for my approval after reading your review.`;
+      } else {
+        let blocoAtualizacao = `🔄 5. SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA (SEM CTRL+F5):\n`;
+        if (autoUpd.temProtecao) {
+          blocoAtualizacao += `- ${autoUpd.statusResumo}\n- Encontrado em: ${(autoUpd.arquivosOndeFoiEncontrado || []).map(a => a.arquivo).join(', ')}`;
+        } else {
+          blocoAtualizacao += `- ${autoUpd.statusResumo || '🚨 AUSENTE: O app não avisa quando há nova atualização'}\n- Tecnologia detectada: ${autoUpd.tecnologiaDetectada || 'Web'}\n${autoUpd.instrucaoCompletaParaIA || ''}`;
+        }
+
+        let blocoModalArrasto = `🪟 6. JANELAS MODAIS FECHANDO SOZINHAS AO ARRASTAR TEXTO:\n`;
+        if (modalArr.temProblema) {
+          blocoModalArrasto += `- ${modalArr.statusResumo}\n${modalArr.instrucaoCompletaParaIA || ''}`;
+        } else {
+          blocoModalArrasto += `- ${modalArr.statusResumo || '✅ Nenhuma modal vulnerável detectada.'}`;
+        }
+
+        texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O ContextMap realizou uma triagem profunda no meu aplicativo e isolou os pontos mais críticos do sistema.
 Como meu app é grande, reuni aqui as MAIORES PRIORIDADES para você fazer um DIAGNÓSTICO INTEGRADO e me dar um parecer antes de qualquer modificação de código:
 
 👑 1. PILARES MESTRE (ARQUIVOS MAIS IMPORTANTES DA ESTRUTURA):
@@ -1546,17 +1599,36 @@ SUA MISSÃO COMO MEU CONSULTOR DE CONFIANÇA:
 2. Faça uma TRIAGEM: quais desses itens (incluindo o Aviso de Atualização Automática sem Ctrl+F5 e a Blindagem de Modais que fecham ao arrastar texto, caso estejam vulneráveis) são prioridades que compensa implementar/otimizar agora, e quais nós devemos DEIXAR COMO ESTÃO porque funcionam bem?
 3. Se você recomendar mexer em algum ponto, qual seria a ordem segura (o passo a passo) sem quebrar o app nem a experiência do cliente?
 4. NÃO ALTERE NENHUMA LINHA DE CÓDIGO AGORA. Aguarde minha decisão após ler seu parecer.`;
+      }
 
       copiarComandoParaIA(texto);
     }
 
-    // Copiar Ordem Específica para Blindar Modais que Fecham ao Arrastar Texto
+    // Specific Fix Brief: Drag-Safe Modals (EN / PT-BR)
     function copiarOrdemCorrecaoModalArrasto() {
       const modalArr = relatorioSaudeCache?.statusModalArrasto || {};
-      const texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
-O Mapa Contexto analisou meu aplicativo e detectou o problema clássico de JANELAS MODAIS FECHANDO SOZINHAS quando eu seleciono um texto dentro de um campo e solto o botão do mouse do lado de fora da janela.
+      const isPt = getCurrentLang() === 'pt';
+      const texto = !isPt
+        ? `AI, you are the Consulting Software Architect for my project.
+ContextMap detected modals that close unexpectedly when a user highlights text inside an input and releases the mouse button outside the modal box (backdrop onClick bug).
 
-🔍 DIAGNÓSTICO DO MAPA CONTEXTO:
+🔍 CONTEXTMAP SENSOR REPORT:
+- Vulnerable files (${modalArr.totalArquivosVulneraveis || 0}):
+${(modalArr.arquivosVulneraveis || []).map(a => `- '${a.arquivo}' (Lines: ${a.linhasVulneraveis.map(l => l.linha).join(', ')})`).join('\n') || '- Scan modal components'}
+
+HOW TO FIX PERMANENTLY:
+1. NEVER close a modal overlay/backdrop using onClick (or onclick / addEventListener('click')) — even with e.target === e.currentTarget or stopPropagation, dragging text out of an input triggers click on the backdrop.
+2. Replace backdrop onClick with onMouseDown checking where the click STARTED:
+   onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+   (and in Vanilla JS: addEventListener('mousedown', (e) => { if (e.target === e.currentTarget) closeModal(); })).
+
+YOUR MISSION:
+1. Inspect the flagged files (and any other modal in the repo) and confirm which ones need this fix.
+2. Explain your plan briefly and wait for my "Go ahead" before editing any code.`
+        : `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O ContextMap analisou meu aplicativo e detectou o problema clássico de JANELAS MODAIS FECHANDO SOZINHAS quando eu seleciono um texto dentro de um campo e solto o botão do mouse do lado de fora da janela.
+
+🔍 DIAGNÓSTICO DO CONTEXTMAP:
 - Status: ${modalArr.statusResumo || 'Modais vulneráveis detectadas'}
 
 ${modalArr.instrucaoCompletaParaIA || ''}
@@ -1568,13 +1640,31 @@ SUA MISSÃO AGORA:
       copiarComandoParaIA(texto);
     }
 
-    // Copiar Ordem Específica para Instalar o Detector de Atualização (Sem Ctrl+F5)
+    // Specific Install Brief: Auto-Update Banner No Ctrl+F5 (EN / PT-BR)
     function copiarOrdemInstalacaoAutoUpdate() {
       const autoUpd = relatorioSaudeCache?.statusAtualizacaoApp || {};
-      const texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
-O Mapa Contexto analisou meu aplicativo e detectou que FALTA o sistema de Aviso de Atualização Automática (para o usuário não ficar preso em versão antiga no cache nem precisar apertar Ctrl+F5 quando eu publicar novidades).
+      const isPt = getCurrentLang() === 'pt';
+      const texto = !isPt
+        ? `AI, you are the Consulting Software Architect for my project.
+ContextMap scanned my app and found it is MISSING an Auto-Update / New Version Notification system (so users get stuck on stale cached builds after deploys unless they press Ctrl+F5).
 
-🔍 DIAGNÓSTICO DO MAPA CONTEXTO:
+🔍 CONTEXTMAP SENSOR REPORT:
+- Detected stack: ${autoUpd.tecnologiaDetectada || 'Web'}
+- Suggested entry file: ${autoUpd.arquivoEntradaSugerido || 'src/App.tsx / app.js'}
+
+RECOMMENDED IMPLEMENTATION:
+1. Add a lightweight 'public/version.json' (or 'version.json') containing { "version": "1.0.0" }.
+2. In the entry file, fetch './version.json?t=' + Date.now() with { cache: 'no-store' } on load, on 'visibilitychange' (tab focus), and every 5 minutes.
+3. Also listen to 'vite:preloadError' (if using Vite) to reload cleanly instead of showing a blank screen.
+4. When a new version is detected, display a clean non-blocking floating banner: "🚀 New update available! [ 🔄 Reload Now ]".
+
+YOUR MISSION:
+1. Inspect my project structure and explain simply which files you will create/update.
+2. Wait for my "Go ahead" before changing any code.`
+        : `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O ContextMap analisou meu aplicativo e detectou que FALTA o sistema de Aviso de Atualização Automática (para o usuário não ficar preso em versão antiga no cache nem precisar apertar Ctrl+F5 quando eu publicar novidades).
+
+🔍 DIAGNÓSTICO DO CONTEXTMAP:
 - Status: ${autoUpd.statusResumo || 'Ausente no projeto'}
 - Tecnologia detectada no meu projeto: ${autoUpd.tecnologiaDetectada || 'Web'}
 - Arquivo principal sugerido: ${autoUpd.arquivoEntradaSugerido || 'app.js / App.tsx'}
@@ -1825,7 +1915,7 @@ SUA MISSÃO COMO CONSULTOR:
         const econ = saude.economiaTokens || {};
 
         document.getElementById('kpi-tokens-pct').innerText = econ.porcentagemEconomia || '85%';
-        document.getElementById('kpi-tokens-qtd').innerText = `~${(econ.tokensEconomizadosEstimados || 75000).toLocaleString('pt-BR')} tokens economizados`;
+        document.getElementById('kpi-tokens-qtd').innerText = `~${(econ.tokensEconomizadosEstimados || 75000).toLocaleString(getLocaleCode())} tokens economizados`;
         
         document.getElementById('kpi-arquivos').innerText = kpis.totalArquivos || '0';
         document.getElementById('kpi-arquivos-sub').innerText = `${dadosCompletosGrafo?.nodes?.length || 0} funções mapeadas`;
@@ -2122,7 +2212,7 @@ SUA MISSÃO COMO CONSULTOR:
 
     async function carregarChecklistProjeto() {
       try {
-        const resp = await fetch('/api/checklist');
+        const resp = await fetch('/api/checklist?lang=' + getCurrentLang());
         if (!resp.ok) return;
         const dados = await resp.json();
         checklistCache = dados;
@@ -2213,7 +2303,7 @@ SUA MISSÃO COMO CONSULTOR:
         const resp = await fetch('/api/checklist/atualizar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId, status: novoStatus })
+          body: JSON.stringify({ itemId, status: novoStatus, lang: getCurrentLang() })
         });
         const res = await resp.json();
         if (res.sucesso && res.checklist) {
@@ -2264,14 +2354,15 @@ SUA MISSÃO COMO CONSULTOR:
 
     function copiarChecklistParaIA() {
       if (!checklistCache || !checklistCache.itens) {
-        return alert("O checklist ainda está carregando.");
+        return alert(getCurrentLang() === 'pt' ? "O checklist ainda está carregando." : "Checklist is still loading.");
       }
 
       const feitos = checklistCache.itens.filter(i => i.status === 'feito');
       const ignorados = checklistCache.itens.filter(i => i.status === 'ignorado');
       const pendentes = checklistCache.itens.filter(i => i.status === 'pendente');
 
-      const texto = `IA, este é o CADERNO DE VISTORIA DO MEU PROJETO com as decisões já tomadas pelo usuário:
+      const texto = getCurrentLang() === 'pt'
+        ? `IA, este é o CADERNO DE VISTORIA DO MEU PROJETO com as decisões já tomadas pelo usuário:
 
 ✅ 1. MELHORIAS JÁ FEITAS NO CÓDIGO (${feitos.length} itens):
 ${feitos.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- Nenhum'}
@@ -2283,7 +2374,20 @@ ${ignorados.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- Nenhum'}
 ${pendentes.map(i => `- ${i.icone} ${i.titulo}: ${i.explicacaoLeiga}`).join('\n') || '- Nenhum'}
 
 DIRETRIZ OBRIGATÓRIA PARA SUAS RESPOSTAS:
-Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COMO ESTÁ' ou 'JÁ FEITO'. Concentre-se apenas nas novas funcionalidades pedidas pelo usuário ou nos itens que estão pendentes.`;
+Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COMO ESTÁ' ou 'JÁ FEITO'. Concentre-se apenas nas novas funcionalidades pedidas pelo usuário ou nos itens que estão pendentes.`
+        : `AI, here is the PERSISTENT INSPECTION CHECKLIST for my project with decisions I already made:
+
+✅ 1. ALREADY DONE IN CODE (${feitos.length} items):
+${feitos.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- None'}
+
+🚫 2. DECIDED TO LEAVE AS IS (${ignorados.length} items — DO NOT RE-AUDIT):
+${ignorados.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- None'}
+
+⏳ 3. STILL PENDING (${pendentes.length} items):
+${pendentes.map(i => `- ${i.icone} ${i.titulo}: ${i.explicacaoLeiga}`).join('\n') || '- None'}
+
+MANDATORY RULE:
+Never waste tokens re-auditing or suggesting changes to items marked DONE or LEAVE AS IS. Focus exclusively on my new feature requests or pending items.`;
 
       copiarComandoParaIA(texto);
     }
@@ -2321,7 +2425,8 @@ Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COM
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             descricaoMudanca: descricao,
-            arquivoAlvo: arquivoAlvo || undefined
+            arquivoAlvo: arquivoAlvo || undefined,
+            lang: getCurrentLang()
           })
         });
         const res = await resp.json();
@@ -2355,16 +2460,16 @@ Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COM
           divCofre.innerHTML = projs.map(p => {
             const nomeLower = (p.nome || '').toLowerCase();
             let icone = '📦';
-            if (nomeLower.includes('obra') || nomeLower.includes('construcao')) icone = '🏗️';
-            else if (nomeLower.includes('ball') || nomeLower.includes('pelada') || nomeLower.includes('futebol')) icone = '⚽';
-            else if (nomeLower.includes('psico') || nomeLower.includes('mente') || nomeLower.includes('saude')) icone = '🧠';
-            else if (nomeLower.includes('mapa') || nomeLower.includes('contexto')) icone = '🧭';
+            if (nomeLower.includes('map') || nomeLower.includes('context')) icone = '🧭';
+            else if (nomeLower.includes('shop') || nomeLower.includes('store') || nomeLower.includes('commerce')) icone = '🛒';
+            else if (nomeLower.includes('api') || nomeLower.includes('server') || nomeLower.includes('backend')) icone = '⚡';
+            else if (nomeLower.includes('ai') || nomeLower.includes('bot') || nomeLower.includes('agent')) icone = '🤖';
 
             const versoes = p.versoes || [];
             const totalVersoes = versoes.length || p.totalVersoes || 1;
-            const dataUltima = p.ultimaAnalise 
-              ? new Date(p.ultimaAnalise).toLocaleDateString('pt-BR') + ' às ' + new Date(p.ultimaAnalise).toLocaleTimeString('pt-BR')
-              : 'Sem data';
+            const dataUltima = p.ultimaAnalise
+              ? formatDateTime(p.ultimaAnalise)
+              : (getCurrentLang() === 'pt' ? 'Sem data' : 'No date');
 
             const caminhoEscaped = (p.caminho || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
@@ -2418,7 +2523,7 @@ Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COM
                   </div>
                   ${versoes.map((v, idx) => {
                     const isRecente = idx === 0;
-                    const dataV = new Date(v.timestamp).toLocaleDateString('pt-BR') + ' às ' + new Date(v.timestamp).toLocaleTimeString('pt-BR');
+                    const dataV = formatDateTime(v.timestamp);
                     return `
                       <div class="linha-tempo-item">
                         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -2485,7 +2590,7 @@ Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COM
                 <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px 16px; margin-bottom:14px;">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
                     <strong style="color:#38bdf8; font-size:0.85rem;">🕰️ Máquina do Tempo: O que mudou entre as duas últimas versões?</strong>
-                    <span style="font-size:0.75rem; color:#94a3b8;">${new Date(hist.dataAntes).toLocaleTimeString('pt-BR')} ➔ ${new Date(hist.dataDepois).toLocaleTimeString('pt-BR')}</span>
+                    <span style="font-size:0.75rem; color:#94a3b8;">${new Date(hist.dataAntes).toLocaleTimeString(getLocaleCode())} ➔ ${new Date(hist.dataDepois).toLocaleTimeString(getLocaleCode())}</span>
                   </div>
                   <div style="display:flex; gap:10px; font-size:0.8rem; margin-bottom:8px; flex-wrap:wrap;">
                     <span style="background:#064e3b; color:#6ee7b7; padding:2px 8px; border-radius:4px; font-weight:600;">+${r.totalArquivosCriados} criados</span>
@@ -2539,7 +2644,7 @@ Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COM
           return;
         }
 
-        const dataF = new Date(foto.timestamp).toLocaleDateString('pt-BR') + ' às ' + new Date(foto.timestamp).toLocaleTimeString('pt-BR');
+        const dataF = formatDateTime(foto.timestamp);
         const k = foto.kpis || {};
 
         conteudo.innerHTML = `

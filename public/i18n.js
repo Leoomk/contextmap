@@ -300,6 +300,15 @@
     localStorage.setItem(STORAGE_KEY, currentLang);
     updateTitleAndButtons();
     translateSubtree(document.body);
+    // Refresh localized backend catalogs (Vaccines, Blueprints, Checklist, Dates) live!
+    try {
+      if (typeof window.carregarConstrutorVacinas === 'function') window.carregarConstrutorVacinas();
+      if (typeof window.carregarChecklistProjeto === 'function') window.carregarChecklistProjeto();
+      if (typeof window.carregarHistoricoECofre === 'function') window.carregarHistoricoECofre();
+      if (typeof window.carregarMonitorSaude === 'function' && document.getElementById('tab-saude')?.classList.contains('active')) {
+        window.carregarMonitorSaude();
+      }
+    } catch (e) {}
   };
 
   function injectLanguageSwitcher() {

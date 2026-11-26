@@ -159,7 +159,7 @@ export function analisarMetricasArquivo(codigoTexto, caminhoRelativo) {
   const temArmazenamentoCache = /localStorage|sessionStorage|indexedDB/i.test(codigoTexto);
   
   // Só considera formulário expressivo se tiver 5+ inputs ou (3+ inputs com 4+ estados)
-  // Evita alarmes falsos em formulários curtos de 2 ou 3 campinhos (PlayerForm, login, etc)
+  // Evita alarmes falsos em formulários curtos de 2 ou 3 campinhos (LoginForm, filtros, etc)
   const temFormularioExpressivo = contagemInputs >= 5 || (contagemInputs >= 3 && contagemUseState >= 4);
   const formularioSemCache = temFormularioExpressivo && !temArmazenamentoCache;
 

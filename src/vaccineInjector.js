@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { VACINAS_CATALOGO, SUPER_BLOCOS_CATALOGO } from './vaccineCatalog.js';
+import { obterCatalogoLocalizado } from './i18nCatalogEn.js';
 
 /**
  * Injetor Inteligente de Vacinas e Blocos Estruturais do MAPACONTEXTO (v5.0).
@@ -136,14 +137,67 @@ ${regrasSempreFaca.length > 0 ? regrasSempreFaca.join('\n') : '- Preserve a inte
 }
 
 /**
- * Gera a receita em texto completo (blindado) para ser copiado e colado em qualquer chat de IA.
+ * Generates the consultative brief text (EN or PT-BR) ready to paste into any AI chat.
  */
-export function gerarPromptTextoBlindado(idsVacinas = [], idsBlocos = []) {
-  const vacinas = VACINAS_CATALOGO.filter(v => idsVacinas.includes(v.id));
-  const blocos = SUPER_BLOCOS_CATALOGO.filter(b => idsBlocos.includes(b.id));
+export function gerarPromptTextoBlindado(idsVacinas = [], idsBlocos = [], lang = 'en') {
+  const { vacinas: catVacinas, blocos: catBlocos } = obterCatalogoLocalizado(
+    lang,
+    {},
+    VACINAS_CATALOGO,
+    SUPER_BLOCOS_CATALOGO
+  );
+  const vacinas = catVacinas.filter(v => idsVacinas.includes(v.id));
+  const blocos = catBlocos.filter(b => idsBlocos.includes(b.id));
+
+  if (lang !== 'pt') {
+    let prompt = `AI, you are the Consulting Software Architect for my project.
+ContextMap scanned my codebase and selected the following ANTI-BUG VACCINES and ARCHITECTURAL BLUEPRINTS to harden my app without breaking what already works.
+Please perform an INTEGRATED TRIAGE and give me your recommendation before touching any code:
+
+🛡️ 1. SELECTED ANTI-BUG VACCINES (${vacinas.length}):
+`;
+    if (vacinas.length === 0) {
+      prompt += `- No specific vaccine selected right now.\n`;
+    } else {
+      vacinas.forEach((v, index) => {
+        prompt += `
+- Vaccine #${index + 1}: ${v.nome}
+  • What it prevents: ${v.resumoLeigo}
+  • Imperative rule: ${v.regraImperativa}
+  • Common AI pitfall:
+${v.exemploErrado}
+  • Bulletproof pattern:
+${v.exemploBlindado}
+`;
+      });
+    }
+
+    if (blocos.length > 0) {
+      prompt += `
+🧱 2. SELECTED CANONICAL BLUEPRINTS (${blocos.length}):
+`;
+      blocos.forEach((b, index) => {
+        prompt += `
+- Blueprint #${index + 1}: ${b.nome}
+  • Purpose: ${b.resumoLeigo}
+  • Canonical files:
+${b.arquivos.map(a => `    • ${a.caminho}: ${a.descricao}`).join('\n')}
+`;
+      });
+    }
+
+    prompt += `
+YOUR MISSION AS MY TRUSTED ARCHITECT:
+1. Explain in plain, jargon-free English how these vaccines/blueprints relate to my real codebase.
+2. Perform a TRIAGE: which items represent REAL risks worth applying right now, and which ones should we LEAVE AS IS because they don't apply to my stack or add unnecessary complexity?
+3. For the recommended items, outline the safest step-by-step order without breaking existing user flows.
+4. DO NOT EDIT ANY CODE YET. Wait for my approval after I read your review.`;
+
+    return prompt;
+  }
 
   let prompt = `IA, você é o Arquiteto de Software Consultor do meu projeto.
-O Mapa Contexto realizou uma triagem profunda no meu aplicativo e isolou as VACINAS ANTI-ERRO e ESTRUTURAS recomendadas para elevar a maturidade e a segurança do sistema sem quebrar o que já funciona.
+O ContextMap realizou uma triagem profunda no meu aplicativo e isolou as VACINAS ANTI-ERRO e ESTRUTURAS recomendadas para elevar a maturidade e a segurança do sistema sem quebrar o que já funciona.
 Como meu app é grande, reuni aqui as PREVENÇÕES DE ERROS e os MOLDES selecionados para você fazer um DIAGNÓSTICO INTEGRADO e me dar um parecer antes de qualquer modificação de código:
 
 🛡️ 1. VACINAS ANTI-ERRO SELECIONADAS (${vacinas.length}):

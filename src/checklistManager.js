@@ -10,9 +10,9 @@ import { gerarIdProjeto } from './historyManager.js';
  * O morador decide o que quer fazer agora ("Feito"), o que deixa para depois ("Pendente")
  * e o que não quer mexer de jeito nenhum ("Ignorado / Deixar como está").
  * 
- * Nas próximas obras (mudanças específicas), o mestre de obras NÃO relê a casa inteira
- * nem gasta tempo e dinheiro com o que já foi aprovado ou descartado.
- * Ele foca exclusivamente na parede ou tomada que o morador pediu para mexer!
+ * Nas próximas mudanças específicas, o sistema NÃO relê o projeto inteiro
+ * nem gasta tempo e tokens com o que já foi aprovado ou descartado.
+ * Ele foca exclusivamente na funcionalidade que o usuário pediu para mexer!
  */
 
 const DIRETORIO_HISTORICO = path.join(process.cwd(), 'data', 'history');
