@@ -433,15 +433,15 @@ SUA MISSÃO COMO CONSULTOR:
   });
   
   app.listen(3000, () => {
-    console.error('🌐 ContextMap 5.0 Dashboard running at http://localhost:3000');
+    console.error('🌐 ContextMap Dashboard running at http://localhost:3000');
   });
 
   // --------------------------------------------------------------------------
-  // INICIALIZAÇÃO DO SERVIDOR MCP (Ouvidos da IA - ContextMap 5.0)
+  // INICIALIZAÇÃO DO SERVIDOR MCP (Ouvidos da IA - ContextMap)
   // --------------------------------------------------------------------------
   const server = new McpServer({
     name: "ContextMap",
-    version: "5.0.0",
+    version: "1.0.0",
   });
 
   // Função de segurança: Garante que o projeto esteja lido e salvo no histórico em qualquer chamada de ferramenta

@@ -1,4 +1,4 @@
-﻿# ðŸ§­ ContextMap 5.0
+﻿# ðŸ§­ ContextMap
 
 > **Mapa de Contexto Local (AST) & Servidor MCP para IAs de ProgramaÃ§Ã£o**  
 > Pare de queimar tokens no escuro e impeÃ§a sua IA de quebrar 3 telas quando vocÃª pede para mexer em 1.
@@ -84,4 +84,5 @@ O ContextMap roda inteiramente no seu computador. Nenhum cÃ³digo-fonte ou nome
 ## ðŸ“„ LicenÃ§a
 
 LicenÃ§a MIT â€” criado por **Leonardo GonÃ§alves ([@leoomk](https://github.com/leoomk))**.
+
 

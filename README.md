@@ -1,4 +1,4 @@
-﻿# ðŸ§­ ContextMap 5.0
+﻿# ðŸ§­ ContextMap
 
 > **Local AST-powered Context Map & MCP Server for AI Coding Assistants**  
 > Stop burning tokens blindly and stop your AI from breaking 3 screens when you ask to edit 1.
@@ -104,4 +104,5 @@ Open an [Issue](https://github.com/leoomk/ContextMap/issues) or submit a Pull Re
 ## ðŸ“„ License
 
 MIT License â€” created by **Leonardo GonÃ§alves ([@leoomk](https://github.com/leoomk))**.
+
 

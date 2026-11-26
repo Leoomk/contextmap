@@ -1,6 +1,6 @@
 {
   "name": "contextmap",
-  "version": "5.0.0",
+  "version": "1.0.0",
   "description": "Local AST-powered Context Map & MCP Server for AI coding assistants — cuts token waste, maps domino effects, detects recurring AI bugs, and enforces surgical planning before coding.",
   "main": "index.js",
   "type": "module",
