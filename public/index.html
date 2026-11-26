@@ -1,0 +1,2591 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>MAPACONTEXTO 3.0 - Dashboard Executivo & Monitor de Saúde</title>
+  <script src="//unpkg.com/3d-force-graph"></script>
+  <style>
+    body, html {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background-color: #0b1120; color: #f8fafc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+    
+    /* Barra Superior de Navegação Fixa */
+    #navbar {
+      display: flex;
+      position: absolute; top: 0; left: 0; width: 100%; height: 56px;
+      background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
+      border-bottom: 1px solid #334155;
+      z-index: 50; box-sizing: border-box;
+      padding: 0 20px; align-items: center; justify-content: space-between;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: bold; font-size: 1.1rem; color: #38bdf8;
+    }
+    .brand span { font-size: 0.8rem; background: #0284c7; color: white; padding: 2px 8px; border-radius: 12px; }
+    
+    .nav-tabs {
+      display: flex; gap: 8px; height: 100%; align-items: center;
+    }
+    .nav-btn {
+      background: transparent; border: 1px solid transparent; color: #94a3b8;
+      padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+      width: auto;
+    }
+    .nav-btn:hover { background: #1e293b; color: #f8fafc; }
+    .nav-btn.active {
+      background: #0284c7; color: white; border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+    .btn-trocar {
+      background: #334155; color: #cbd5e1; font-size: 0.8rem; padding: 6px 12px;
+      border-radius: 6px; border: 1px solid #475569; cursor: pointer; width: auto;
+    }
+    .btn-trocar:hover { background: #475569; color: white; }
+
+    /* Telas / Abas */
+    .tab-content {
+      position: absolute; top: 56px; left: 0; width: 100%; height: calc(100% - 56px);
+      box-sizing: border-box; display: none; overflow: hidden;
+    }
+    .tab-content.active { display: block; }
+
+    /* Tela Inicial de Boas-Vindas (Oculta por padrão para abrir direto no Histórico) */
+    #dashboard-layer {
+      display: none;
+      position: absolute; width: 100%; height: 100%; z-index: 60;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%);
+      transition: opacity 0.4s ease;
+    }
+    .card {
+      background: #1e293b; padding: 40px; border-radius: 16px;
+      border: 1px solid #334155; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      text-align: center; width: 440px;
+    }
+    .card h1 { color: #38bdf8; margin: 0 0 10px 0; font-size: 2.2rem; }
+    .card p { color: #94a3b8; margin-bottom: 25px; line-height: 1.5; font-size: 0.95rem; }
+    
+    input[type="text"], select {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-size: 0.95rem; box-sizing: border-box;
+      margin-bottom: 20px;
+    }
+    input[type="text"]:focus, select:focus { outline: none; border-color: #38bdf8; }
+    
+    .btn-primary {
+      width: 100%; padding: 12px; border-radius: 8px; border: none;
+      background: #38bdf8; color: #0f172a; font-weight: bold; font-size: 1.05rem;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #0ea5e9; }
+    .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+
+    #loading { display: none; margin-top: 15px; color: #fbbf24; font-weight: bold; }
+
+    /* Aba 1: Grafo 3D */
+    #cabecalho-flutuante {
+      position: absolute; top: 15px; left: 15px;
+      background: rgba(15, 23, 42, 0.9); padding: 15px 20px;
+      border-radius: 10px; border: 1px solid #334155;
+      max-height: 85vh; overflow-y: auto; z-index: 30; width: 330px;
+      backdrop-filter: blur(8px);
+    }
+    .legenda-item {
+      display: flex; align-items: flex-start; margin-bottom: 10px;
+      font-size: 0.85rem; line-height: 1.2;
+    }
+    .legenda-item .badge { margin-top: 2px; flex-shrink: 0; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+
+    /* Aba 2: Monitor de Saúde (Dashboard Executivo) */
+    #tab-saude {
+      overflow-y: auto; padding: 25px 30px;
+      background: #0b1120;
+    }
+    .grid-kpis {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px; margin-bottom: 25px;
+    }
+    .kpi-card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 18px; text-align: left; position: relative; overflow: hidden;
+    }
+    .kpi-card::after {
+      content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+      background: #38bdf8;
+    }
+    .kpi-card.destaque-verde::after { background: #10b981; }
+    .kpi-card.destaque-vermelho::after { background: #ef4444; }
+    .kpi-card.destaque-amarelo::after { background: #f59e0b; }
+    .kpi-card.destaque-roxo::after { background: #a855f7; }
+    
+    .kpi-card .titulo { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+    .kpi-card .valor { font-size: 1.8rem; font-weight: bold; color: #f8fafc; }
+    .kpi-card .subtexto { font-size: 0.75rem; color: #64748b; margin-top: 5px; }
+
+    .grid-dupla {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+      margin-bottom: 25px;
+    }
+    @media (max-width: 1000px) { .grid-dupla { grid-template-columns: 1fr; } }
+
+    .secao-card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 20px; margin-bottom: 20px;
+    }
+    .secao-titulo {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 0; margin-bottom: 15px; font-size: 1.1rem; color: #38bdf8;
+      border-bottom: 1px solid #334155; padding-bottom: 10px;
+    }
+    .secao-titulo span { font-size: 0.8rem; color: #94a3b8; font-weight: normal; }
+
+    .item-alerta {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+      padding: 12px 15px; margin-bottom: 10px; display: flex;
+      justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .item-alerta.critico { border-left: 4px solid #ef4444; }
+    .item-alerta.alerta { border-left: 4px solid #f59e0b; }
+    .item-alerta.seguranca { border-left: 4px solid #8b5cf6; }
+
+    .item-info { flex: 1; }
+    .item-arquivo { font-weight: 600; font-size: 0.9rem; color: #f8fafc; word-break: break-all; }
+    .item-detalhe { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; line-height: 1.3; }
+
+    .btn-copiar-ia {
+      background: #0284c7; color: white; border: none; border-radius: 6px;
+      padding: 8px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: background 0.2s;
+    }
+    .btn-copiar-ia:hover { background: #0369a1; }
+
+    /* Barra de Progresso de Arquivos */
+    .barra-arquivo { margin-bottom: 10px; }
+    .barra-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 4px; }
+    .barra-trilho { background: #0f172a; height: 8px; border-radius: 4px; overflow: hidden; }
+    .barra-preenchimento { background: #38bdf8; height: 100%; border-radius: 4px; }
+
+    /* Aba 3: Histórico e Projetos */
+    #tab-historico {
+      overflow-y: auto; padding: 25px 30px;
+      background: #0b1120;
+    }
+
+    /* Caixinhas de Projetos Salvos no Cofre */
+    .caixa-projeto {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .caixa-projeto:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.12);
+    }
+    .caixa-projeto-topo {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.7);
+      border-bottom: 1px solid #334155;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .caixa-projeto-identificacao {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .caixa-projeto-icone {
+      font-size: 1.8rem;
+      background: #0f172a;
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    .caixa-projeto-nome {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-versoes {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .caixa-projeto-caminho {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 3px;
+      word-break: break-all;
+    }
+    .caixa-projeto-resumo {
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      background: #1e293b;
+    }
+    .mini-kpis-projeto {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .mini-kpi {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .mini-kpi strong {
+      color: #f8fafc;
+      font-size: 0.88rem;
+    }
+    .mini-kpi.alerta-banco {
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .mini-kpi.alerta-banco strong {
+      color: #ef4444;
+    }
+    .mini-kpi.alerta-forms {
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fcd34d;
+    }
+    .mini-kpi.alerta-forms strong {
+      color: #f59e0b;
+    }
+    .caixa-projeto-botoes {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn-acao-caixa {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-acao-abrir {
+      background: #38bdf8;
+      color: #0f172a;
+    }
+    .btn-acao-abrir:hover {
+      background: #0ea5e9;
+    }
+    .btn-acao-versoes {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+    }
+    .btn-acao-versoes:hover {
+      background: #475569;
+    }
+    .btn-acao-versoes.ativa {
+      background: #8b5cf6;
+      border-color: #a855f7;
+      color: white;
+    }
+    .caixa-versoes-container {
+      display: none;
+      background: #0b1120;
+      border-top: 1px solid #334155;
+      padding: 16px 20px;
+    }
+    .caixa-versoes-container.aberta {
+      display: block;
+    }
+    .linha-tempo-titulo {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .linha-tempo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+    .linha-tempo-item:hover {
+      background: #1e293b;
+      border-color: #38bdf8;
+    }
+    .tag-versao-numero {
+      background: #334155;
+      color: #f8fafc;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+    }
+    .tag-versao-numero.recente {
+      background: #0284c7;
+      color: white;
+    }
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+      z-index: 120; display: none; align-items: center; justify-content: center;
+      padding: 20px; box-sizing: border-box;
+    }
+    .modal-card {
+      background: #1e293b; border: 1px solid #475569; border-radius: 14px;
+      max-width: 750px; width: 100%; max-height: 85vh; overflow-y: auto;
+      padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    }
+
+    /* Estilos da Aba 4: Construtor & Vacinas Anti-Erro (v5.0) */
+    #tab-vacinas {
+      overflow-y: auto; padding: 25px 30px;
+      background: #0b1120;
+    }
+    .grade-vacinas {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px; margin-bottom: 25px;
+    }
+    .cartao-vacina {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 18px; position: relative; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .cartao-vacina:hover {
+      border-color: #475569; transform: translateY(-2px);
+    }
+    .cartao-vacina.selecionada {
+      border-color: #38bdf8; background: #162238; box-shadow: 0 4px 20px rgba(56, 189, 248, 0.12);
+    }
+    .cartao-vacina-cabecalho {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px;
+    }
+    .cartao-vacina-titulo {
+      font-size: 0.95rem; font-weight: 700; color: #f8fafc; line-height: 1.3;
+    }
+    .cartao-vacina-resumo {
+      font-size: 0.83rem; color: #94a3b8; line-height: 1.4; margin-bottom: 14px;
+    }
+    .cartao-vacina-rodape {
+      display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #334155; margin-top: auto;
+    }
+    .badge-recomendada {
+      background: #10b981; color: white; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .badge-categoria {
+      background: #334155; color: #cbd5e1; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+    }
+    .grade-blocos {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px; margin-bottom: 30px;
+    }
+    .cartao-bloco {
+      background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #4f46e5; border-radius: 14px; padding: 22px;
+      position: relative; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .cartao-bloco:hover {
+      border-color: #818cf8; transform: translateY(-2px);
+    }
+    .cartao-bloco.selecionado {
+      border-color: #a855f7; box-shadow: 0 4px 22px rgba(168, 85, 247, 0.2); background: #1e1b4b;
+    }
+    .barra-telemetria-vacinas {
+      background: #0f172a; border: 1px solid #334155; border-radius: 12px;
+      padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; margin-bottom: 24px;
+    }
+
+    /* Botão Explícito de Seleção do Dossiê */
+    .btn-dossie-toggle {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .btn-dossie-toggle:hover {
+      background: #1e293b;
+      border-color: #38bdf8;
+      color: #f8fafc;
+    }
+    .btn-dossie-toggle.ativo {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+    }
+    .btn-dossie-toggle.ativo-bloco {
+      background: #7c3aed;
+      color: #ffffff;
+      border-color: #a855f7;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+    }
+
+    /* Estilos do Checklist Persistente */
+    .cartao-checklist {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .cartao-checklist.status-feito {
+      border-left: 4px solid #10b981;
+    }
+    .cartao-checklist.status-pendente {
+      border-left: 4px solid #f59e0b;
+    }
+    .cartao-checklist.status-ignorado {
+      border-left: 4px solid #64748b;
+      opacity: 0.75;
+    }
+    .btn-status-pilula {
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-status-pilula:hover {
+      background: #334155;
+      color: #f8fafc;
+    }
+    .btn-status-pilula.ativo-feito {
+      background: #10b981;
+      color: white;
+      border-color: #059669;
+    }
+    .btn-status-pilula.ativo-pendente {
+      background: #f59e0b;
+      color: #0f172a;
+      font-weight: 700;
+      border-color: #d97706;
+    }
+    .btn-status-pilula.ativo-ignorado {
+      background: #475569;
+      color: #cbd5e1;
+      border-color: #64748b;
+    }
+
+    /* Toast Flutuante de Sucesso */
+    #toast-sucesso {
+      position: fixed; bottom: 30px; right: 30px;
+      background: #10b981; color: white; padding: 14px 22px; border-radius: 8px;
+      font-weight: 600; font-size: 0.95rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 100; display: none; animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+
+  <!-- Barra Superior de Navegação -->
+  <div id="navbar">
+    <div class="brand">
+      🧭 MAPACONTEXTO <span>5.0</span>
+      <span id="nome-projeto-ativo" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; font-size:0.75rem;">Nenhum Projeto</span>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-btn active" onclick="trocarAba('tab-historico')">🕰️ Histórico & Projetos</button>
+      <button class="nav-btn" onclick="trocarAba('tab-saude')">📊 Monitor de Saúde & Custos</button>
+      <button class="nav-btn" onclick="trocarAba('tab-vacinas')">🛡️ Construtor & Vacinas</button>
+      <button class="nav-btn" onclick="trocarAba('tab-grafo')">🌌 Grafo 3D</button>
+    </div>
+    <button class="btn-trocar" onclick="trocarAba('tab-historico'); document.getElementById('caminho').focus();">📁 Novo Projeto</button>
+  </div>
+
+  <!-- ABA 3: Grafo 3D das Conexões (Carregamento Opcional sob Demanda) -->
+  <div id="tab-grafo" class="tab-content">
+    <div id="cabecalho-flutuante">
+      <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #1e293b; padding: 10px; border-radius: 6px; border: 1px solid #475569;" onclick="toggleLegenda()">
+        <h2 style="margin: 0; color: #38bdf8; font-size: 1.1rem;">Legenda do Mapa</h2>
+        <span id="setinha" style="font-size: 1rem; color: #f8fafc; font-weight: bold; user-select: none;">▼ ESCONDER</span>
+      </div>
+
+      <div id="conteudo-legenda" style="margin-top: 12px;">
+        <div class="legenda-item">
+          <span class="badge" style="background: #8b5cf6; box-shadow: 0 0 8px #8b5cf6;"></span>
+          <div><strong>Domínio de Negócio (A Cidade)</strong><br><span style="font-size: 0.72rem; color: #94a3b8;">Duplo clique para abrir/fechar.</span></div>
+        </div>
+        <div class="legenda-item">
+          <span class="badge" style="background: #3b82f6;"></span>
+          <div><strong>Arquivos Reais (Telas/Módulos)</strong></div>
+        </div>
+        <div class="legenda-item">
+          <span class="badge" style="background: #10b981;"></span>
+          <div><strong>Lógicas Inofensivas</strong></div>
+        </div>
+        <div class="legenda-item">
+          <span class="badge" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+          <div><strong>Zona de Perigo (Banco de Dados)</strong></div>
+        </div>
+        <div class="legenda-item">
+          <span style="color: #f59e0b; font-weight: bold; margin-right: 6px;">➔</span>
+          <div><strong>Seta Laranja:</strong> Dependência de Código</div>
+        </div>
+        <div class="legenda-item">
+          <span style="color: #d946ef; font-weight: bold; margin-right: 6px;">➔</span>
+          <div><strong>Seta Rosa:</strong> Conexão Wi-Fi (Rotas/APIs)</div>
+        </div>
+
+        <div style="margin-top: 12px; border-top: 1px solid #334155; padding-top: 10px;">
+          <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 6px;">Filtros Visuais</p>
+          <label style="display:flex; align-items:center; font-size:0.75rem; margin-bottom:4px; cursor:pointer;">
+            <input type="checkbox" id="chk-files" checked onchange="atualizarVisibilidade()"> <span style="margin-left:5px;">Mostrar Arquivos Menores (Azul)</span>
+          </label>
+          <label style="display:flex; align-items:center; font-size:0.75rem; margin-bottom:4px; cursor:pointer;">
+            <input type="checkbox" id="chk-logic" checked onchange="atualizarVisibilidade()"> <span style="margin-left:5px;">Mostrar Lógica Inofensiva (Verde)</span>
+          </label>
+          <label style="display:flex; align-items:center; font-size:0.75rem; margin-bottom:12px; cursor:pointer;">
+            <input type="checkbox" id="chk-db" checked onchange="atualizarVisibilidade()"> <span style="margin-left:5px;">Mostrar Risco de Banco (Vermelho)</span>
+          </label>
+          
+          <button onclick="expandirTudo()" style="margin-bottom: 8px; font-size: 0.75rem; padding: 6px; width:100%; border-radius:6px; background:#0284c7; color:white; border:none; cursor:pointer;">🌌 Expandir Todas as Cidades</button>
+          <button onclick="recolherTudo()" style="margin-bottom: 12px; font-size: 0.75rem; padding: 6px; width:100%; border-radius:6px; background:#475569; color:white; border:none; cursor:pointer;">🏙️ Recolher para Visão Global</button>
+
+          <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">Focar em Domínio de Negócio:</p>
+          <select id="select-focus" onchange="aplicarFoco()" style="margin-bottom: 0; font-size: 0.8rem; padding: 8px;">
+             <option value="">-- Visão Global (Todos) --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="grafo-container" style="width:100%; height:100%;"></div>
+  </div>
+
+  <!-- ABA 2: Monitor de Saúde, Memória e Custos -->
+  <div id="tab-saude" class="tab-content">
+    
+    <!-- Banner Didático: Raio-X da Construção -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #0284c7; border-radius: 12px; padding: 20px 24px; margin-bottom: 22px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="font-size: 2.5rem;">🩺</div>
+          <div>
+            <h3 style="margin: 0; color: #38bdf8; font-size: 1.25rem;">Raio-X de Saúde e Custos do seu Aplicativo</h3>
+            <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 0.88rem; max-width: 820px; line-height: 1.45;">
+              Imagine o seu app como um <strong>prédio já construído</strong>. Aqui nós examinamos onde estão os pilares de sustentação da casa (que não podem quebrar), onde a torneira está aberta gastando banco de dados à toa, e onde o usuário pode perder tudo o que digitou se a internet oscilar.
+            </p>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn-primary" onclick="copiarDossieConsolidado()" style="width: auto; padding: 12px 22px; font-size: 0.92rem; background: #0284c7; color: white; display: flex; align-items: center; gap: 8px; font-weight: 700; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);">
+            <span>📋</span> Copiar Check-up Geral para a IA
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Filtro e Agrupamento por Módulo (Bairros da Cidade) -->
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 14px; border-top: 1px solid #334155;">
+        <div style="display: flex; align-items: center; gap: 14px; flex: 1; min-width: 280px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.82rem; color: #cbd5e1; font-weight: 600;">🏢 Filtrar por Bairro / Área:</span>
+            <select id="select-filtro-modulo-saude" onchange="filtrarAlertasPorModulo()" style="margin-bottom: 0; padding: 8px 12px; font-size: 0.82rem; background: #0f172a; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; min-width: 220px;">
+              <option value="todos">-- Todas as Áreas do App (Visão Geral) --</option>
+            </select>
+          </div>
+          <label style="font-size: 0.8rem; color: #94a3b8; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="chk-ignorar-testes" checked onchange="filtrarAlertasPorModulo()"> 
+            <span>Ocultar arquivos de teste e rascunho</span>
+          </label>
+        </div>
+        <button id="btn-dossie-modulo" class="btn-primary" onclick="copiarDossieModuloSelecionado()" style="width: auto; padding: 8px 16px; font-size: 0.82rem; background: #8b5cf6; color: white; display: none;">
+          📦 Copiar Dossiê Desta Área para a IA
+        </button>
+      </div>
+    </div>
+    
+    <!-- Caixa de Análise de Mudança Específica (Zero Desperdício de Tokens) -->
+    <div class="secao-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); border: 2px solid #8b5cf6; margin-bottom: 22px; padding: 20px 24px; box-shadow: 0 8px 24px rgba(139, 92, 246, 0.15);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 14px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.6rem;">🎯</span>
+            <h3 style="margin: 0; color: #c084fc; font-size: 1.2rem;">Analisar Nova Mudança Específica (Zero Desperdício de Tokens)</h3>
+            <span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid #9333ea; padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">Modo Cirúrgico</span>
+          </div>
+          <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 0.86rem; line-height: 1.45; max-width: 860px;">
+            💡 <strong>O segredo da economia:</strong> Quando você pede uma alteração pontual, a IA não precisa reler a vistoria da casa inteira! Digite o que deseja mudar abaixo: o Mapa Contexto <strong>oculta tudo o que você já fez ou decidiu deixar quieto</strong> no checklist e gera uma ordem cirúrgica focada 100% no raio de impacto da novidade.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex: 2; min-width: 280px;">
+          <label style="display: block; font-size: 0.8rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">O que você quer mudar ou criar agora no seu aplicativo?</label>
+          <input type="text" id="input-descricao-mudanca" placeholder="Ex: Criar um botão para exportar extrato em Excel ou Ajustar o campo de valor do pagamento" style="margin-bottom: 0; padding: 11px 14px; background: #0b1120; border: 1px solid #475569; border-radius: 8px; color: #f8fafc; font-size: 0.88rem; width: 100%; box-sizing: border-box;">
+        </div>
+        <div style="flex: 1; min-width: 220px;">
+          <label style="display: block; font-size: 0.8rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">Arquivo principal da alteração:</label>
+          <select id="select-arquivo-mudanca" style="margin-bottom: 0; padding: 11px 12px; font-size: 0.85rem; background: #0b1120; color: #f8fafc; border: 1px solid #475569; border-radius: 8px; width: 100%; box-sizing: border-box;">
+            <option value="">-- Carregando arquivos... --</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="gerarOrdemMudancaEspecifica()" style="background: #8b5cf6; color: white; padding: 12px 22px; font-weight: 700; font-size: 0.88rem; white-space: nowrap; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(139, 92, 246, 0.45); cursor: pointer; border: none; border-radius: 8px;">
+          <span>⚡</span> Copiar Ordem Cirúrgica para a IA
+        </button>
+      </div>
+    </div>
+
+    <!-- Cartões de Resumo (KPIs) -->
+    <div class="grid-kpis">
+      <div class="kpi-card destaque-verde">
+        <div class="titulo">💰 Memória Poupada da IA</div>
+        <div class="valor" id="kpi-tokens-pct">--%</div>
+        <div class="subtexto" id="kpi-tokens-qtd">Calculando economia...</div>
+      </div>
+      <div class="kpi-card">
+        <div class="titulo">🖥️ Telas & Arquivos</div>
+        <div class="valor" id="kpi-arquivos">0</div>
+        <div class="subtexto" id="kpi-arquivos-sub">0 funções mapeadas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="titulo">🗄️ Tabelas de Dados</div>
+        <div class="valor" id="kpi-tabelas">0</div>
+        <div class="subtexto" id="kpi-tabelas-sub">Onde seus dados ficam guardados</div>
+      </div>
+      <div class="kpi-card destaque-vermelho">
+        <div class="titulo">💸 Alertas de Conta Alta</div>
+        <div class="valor" id="kpi-custos">0</div>
+        <div class="subtexto">Viagens repetidas ao banco</div>
+      </div>
+      <div class="kpi-card destaque-amarelo">
+        <div class="titulo">📝 Risco de Perder Digitação</div>
+        <div class="valor" id="kpi-forms">0</div>
+        <div class="subtexto">Sem salvamento temporário</div>
+      </div>
+      <div class="kpi-card">
+        <div class="titulo">🔐 Travas de Segurança</div>
+        <div class="valor" id="kpi-seguranca">0</div>
+        <div class="subtexto">Checagens de Administrador</div>
+      </div>
+      <div class="kpi-card destaque-roxo">
+        <div class="titulo">👑 Pilares Mestre (Centrais)</div>
+        <div class="valor" id="kpi-godnodes">0</div>
+        <div class="subtexto" id="kpi-godnodes-sub">Sustentam o app todo</div>
+      </div>
+      <div class="kpi-card" id="kpi-card-autoupdate">
+        <div class="titulo">🔄 Aviso Sem Ctrl+F5</div>
+        <div class="valor" id="kpi-autoupdate" style="font-size: 1.35rem;">--</div>
+        <div class="subtexto" id="kpi-autoupdate-sub">Detector de nova versão</div>
+      </div>
+      <div class="kpi-card" id="kpi-card-modal-arrasto">
+        <div class="titulo">🪟 Modais Anti-Arrasto</div>
+        <div class="valor" id="kpi-modal-arrasto" style="font-size: 1.35rem;">--</div>
+        <div class="subtexto" id="kpi-modal-arrasto-sub">Proteção ao selecionar texto</div>
+      </div>
+    </div>
+
+    <!-- Banner Especial: Detector de Atualização Automática do App (Sem Ctrl+F5) -->
+    <div id="card-status-atualizacao" class="secao-card" style="margin-bottom: 16px; border-width: 2px;">
+      Carregando verificação de atualização automática (Sem Ctrl+F5)...
+    </div>
+
+    <!-- Banner Especial: Detector de Janelas Modais Fechando ao Arrastar Texto -->
+    <div id="card-status-modal-arrasto" class="secao-card" style="margin-bottom: 20px; border-width: 2px;">
+      Carregando verificação de janelas modais (anti-fechamento ao arrastar texto)...
+    </div>
+
+    <!-- Seção: Caderno de Vistoria do Projeto (Checklist Persistente de Melhorias) -->
+    <div class="secao-card" style="margin-bottom: 22px; border: 1px solid #38bdf8;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; border-bottom: 1px solid #334155; padding-bottom: 12px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.4rem;">📋</span>
+            <h3 style="margin: 0; color: #38bdf8; font-size: 1.15rem;">Caderno de Vistoria do Projeto (Checklist Persistente)</h3>
+          </div>
+          <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.84rem; line-height: 1.4;">
+            💡 <strong>Memória definitiva:</strong> Itens marcados como <strong>✅ Feito</strong> ou <strong>🚫 Deixar como está</strong> são memorizados no histórico do seu app. Nas próximas análises de mudanças pontuais, a IA pula esses itens e <strong>não gasta seus tokens</strong> reavaliando o que já foi decidido!
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <span id="badge-checklist-status" style="background: #0f172a; border: 1px solid #334155; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; color: #cbd5e1; font-weight: 600;">
+            Carregando checklist...
+          </span>
+          <button onclick="copiarChecklistParaIA()" style="background: #1e293b; color: #38bdf8; border: 1px solid #0284c7; padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Copiar Checklist para a IA
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros do Checklist -->
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+        <button class="btn-categoria-filtro ativa" id="filtro-check-todos" onclick="filtrarItensChecklist('todos')" style="background: #0284c7; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;">Todos (<span id="chk-qtd-todos">10</span>)</button>
+        <button class="btn-categoria-filtro" id="filtro-check-pendente" onclick="filtrarItensChecklist('pendente')" style="background: #1e293b; color: #fbbf24; border: 1px solid #d97706; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;">⏳ Pendentes (<span id="chk-qtd-pendentes">0</span>)</button>
+        <button class="btn-categoria-filtro" id="filtro-check-feito" onclick="filtrarItensChecklist('feito')" style="background: #1e293b; color: #4ade80; border: 1px solid #059669; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;">✅ Feitos (<span id="chk-qtd-feitos">0</span>)</button>
+        <button class="btn-categoria-filtro" id="filtro-check-ignorado" onclick="filtrarItensChecklist('ignorado')" style="background: #1e293b; color: #94a3b8; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;">🚫 Deixar como está (<span id="chk-qtd-ignorados">0</span>)</button>
+      </div>
+
+      <!-- Grade dos Itens -->
+      <div id="grade-checklist-itens" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px;">
+        Carregando itens de vistoria...
+      </div>
+    </div>
+
+    <!-- Grade Principal -->
+    <div class="grid-dupla">
+      
+      <!-- Coluna da Esquerda: Pilares Mestre, Banco & Formulários -->
+      <div>
+        <div class="secao-card" style="border-color: #8b5cf6;">
+          <h3 class="secao-titulo" style="color: #c084fc;">
+            👑 Pilares Mestre da Estrutura (Arquivos Mais Importantes)
+            <span>Sustentam o sistema inteiro. Se mexer com erro, pode causar efeito dominó</span>
+          </h3>
+          <div id="lista-godnodes">Carregando análise dos pilares mestre...</div>
+        </div>
+
+        <div class="secao-card">
+          <h3 class="secao-titulo">
+            💸 Alertas de Conta Alta no Banco de Dados (Gasto Excessivo)
+            <span>Telas que fazem viagens repetidas ao banco ou trazem tabelas inteiras de uma vez</span>
+          </h3>
+          <div id="lista-viloes-banco">Carregando diagnósticos de banco...</div>
+        </div>
+
+        <div class="secao-card">
+          <h3 class="secao-titulo">
+            📝 Risco de Perder o que Digitou (Sem Rascunho Automático)
+            <span>Se o usuário atualizar a página ou a internet cair, terá que preencher tudo de novo</span>
+          </h3>
+          <div id="lista-forms-risco">Carregando análise de formulários...</div>
+        </div>
+      </div>
+
+      <!-- Coluna da Direita: Memória, Telas Gêmeas e Pastas -->
+      <div>
+        <div class="secao-card">
+          <h3 class="secao-titulo">
+            🏋️ Telas Pesadas (Exigem muito do Celular ou Computador)
+            <span>Arquivos gigantes ou telas que lidam com arquivos pesados na memória</span>
+          </h3>
+          <div id="lista-viloes-memoria">Carregando monitor de memória...</div>
+        </div>
+
+        <div class="secao-card">
+          <h3 class="secao-titulo">
+            🔄 Telas Quase Idênticas (Trabalho Duplicado)
+            <span>Lógicas muito parecidas que a IA pode unificar para facilitar a manutenção</span>
+          </h3>
+          <div id="lista-gemeos">Carregando comparador de lógicas...</div>
+        </div>
+
+        <div class="secao-card">
+          <h3 class="secao-titulo">
+            📁 Arquivos Mais Longos do Projeto (Top 5)
+            <span>Arquivos com centenas de linhas que podem ser divididos para facilitar</span>
+          </h3>
+          <div id="lista-maiores-arquivos">Carregando tamanho de arquivos...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ABA 1: Histórico & Projetos Salvos -->
+  <div id="tab-historico" class="tab-content active">
+
+    <!-- Caixa Integrada para Analisar Novo Projeto Sem Bloquear a Tela -->
+    <div class="secao-card" style="margin-bottom: 20px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-color: #38bdf8;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+          <h3 style="margin: 0; color: #38bdf8; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+            <span>📁</span> Analisar Nova Pasta de Projeto
+          </h3>
+          <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.85rem;">Selecione qualquer pasta no seu computador para o Mapa Contexto ler o código e alimentar sua IA.</p>
+        </div>
+        <div style="display: flex; gap: 10px; flex: 1; max-width: 650px;">
+          <input type="text" id="caminho" placeholder="Ex: C:\MeusProjetos\App" style="margin-bottom: 0;">
+          <button type="button" onclick="procurarPasta()" style="width: auto; padding: 10px 16px; background: #475569; color: white; white-space: nowrap; border:none; border-radius:8px; cursor:pointer; font-weight:600;">📁 Procurar</button>
+          <button id="btn-analisar" class="btn-primary" onclick="iniciarAnalise()" style="width: auto; padding: 10px 22px; white-space: nowrap;">⚡ Analisar</button>
+        </div>
+      </div>
+      <div id="loading" style="display: none; margin-top: 10px; color: #fbbf24; font-weight: bold; font-size: 0.85rem;">Varrendo arquivos, custos de banco e efeito dominó... ⏳</div>
+    </div>
+
+    <!-- Seção 1: Galeria de Projetos no Cofre (Caixinha Dedicada para Cada Aplicativo) -->
+    <div class="secao-card" style="border-color: #38bdf8;">
+      <h3 class="secao-titulo">
+        🗂️ Galeria de Projetos Salvos no Cofre
+        <span>Cada aplicativo possui sua própria caixinha com a linha do tempo de todas as leituras</span>
+      </h3>
+      <div id="conteudo-projetos-cofre">Carregando projetos salvos no cofre...</div>
+    </div>
+  </div>
+
+  <!-- ABA 4: Construtor & Posto de Vacinas Anti-Erro (v5.0) -->
+  <div id="tab-vacinas" class="tab-content">
+    
+    <!-- Banner de Apresentação e Boas-Vindas (Modo Consultoria) -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #38bdf8; border-radius: 14px; padding: 22px 26px; margin-bottom: 22px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="font-size: 2.5rem;">🛡️</div>
+          <div>
+            <h2 style="margin: 0; color: #38bdf8; font-size: 1.3rem;">Farmácia de Vacinas Anti-Erro & Peças Prontas</h2>
+            <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 0.88rem; max-width: 820px; line-height: 1.45;">
+              💡 <strong>Como funciona de forma simples:</strong> IAs de programação não têm memória de erros passados e costumam cometer sempre as mesmas falhas clássicas (como trocar a data do calendário no fuso horário ou fechar janelas por acidente).
+            </p>
+            <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.84rem; max-width: 820px; line-height: 1.4;">
+              👉 Clique nos botões <strong>[ ➕ Incluir no Dossiê ]</strong> nas proteções que deseja. Depois, clique no botão azul <strong>[ 📋 Copiar Dossiê Consultivo para a IA ]</strong> e cole no chat da sua IA para ela saber exatamente o que prevenir antes de tocar no código!
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn-primary" onclick="copiarReceitaBlindada()" style="width: auto; padding: 12px 24px; font-size: 0.95rem; background: #0284c7; color: white; display: flex; align-items: center; gap: 10px; font-weight: 700; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.45);">
+            <span>📋</span> Copiar Dossiê Consultivo para a IA
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Recomendação Inteligente (O Raio-X do Projeto) -->
+      <div id="banner-recomendacao-vacinas" style="display: none; margin-top: 18px; padding-top: 16px; border-top: 1px solid #334155;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.4rem;">💡</span>
+            <span id="texto-recomendacao-vacinas" style="color: #6ee7b7; font-size: 0.88rem; font-weight: 600;">
+              O Mapa Contexto analisou seu projeto e pré-selecionou as vacinas essenciais para o seu código.
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="selecionarApenasRecomendadas()" style="background: #10b981; color: white; border: none; padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer;">
+              ✨ Marcar Recomendadas
+            </button>
+            <button onclick="selecionarTodasVacinas()" style="background: #334155; color: #f8fafc; border: 1px solid #475569; padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">
+              Marcar Todas (<span id="btn-total-vacinas-label">18</span>)
+            </button>
+            <button onclick="desmarcarTodasVacinas()" style="background: transparent; color: #94a3b8; border: 1px solid #334155; padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">
+              Limpar Tudo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Status do Dossiê em Tempo Real -->
+    <div class="barra-telemetria-vacinas">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span style="font-size: 0.85rem; color: #cbd5e1; font-weight: 700;">📋 Status do seu Dossiê:</span>
+        <span style="background: #1e293b; border: 1px solid #334155; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; color: #38bdf8;">
+          Proteções incluídas: <strong id="contador-vacinas-ativas" style="color: #f8fafc; font-size: 0.9rem;">0</strong> / <span id="contador-total-vacinas">18</span>
+        </span>
+        <span style="background: #1e293b; border: 1px solid #334155; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; color: #c084fc;">
+          Peças prontas incluídas: <strong id="contador-blocos-ativos" style="color: #f8fafc; font-size: 0.9rem;">0</strong> / <span id="contador-total-blocos">4</span>
+        </span>
+      </div>
+      <div style="font-size: 0.82rem; color: #94a3b8;">
+        *(Tudo o que estiver com '✅ Incluído' entra na receita copiada para a IA)*
+      </div>
+    </div>
+
+    <!-- Seção A: Peças Prontas Canônicas (Moldes de Construção) -->
+    <div style="margin-bottom: 30px;">
+      <h3 style="color: #c084fc; font-size: 1.15rem; margin-top: 0; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+        🧱 Peças Prontas de Construção (Estruturas Canônicas)
+      </h3>
+      <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0; margin-bottom: 16px;">
+        Módulos prontos e testados para o seu app não nascer com defeito estrutural.
+      </p>
+      <div id="grade-super-blocos" class="grade-blocos">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </div>
+
+    <!-- Seção B: As Vacinas Anti-Erro (Categorizadas) -->
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <div>
+          <h3 style="color: #38bdf8; font-size: 1.15rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+            🧪 As Vacinas Anti-Erro do Vibe Coding
+          </h3>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin: 4px 0 0 0;">
+            Regras curtas e diretas com exemplos contrastantes (❌ Como a IA costuma errar vs ✅ Jeito Certo).
+          </p>
+        </div>
+        <div id="filtro-categorias-vacinas" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn-categoria-filtro ativa" onclick="filtrarCategoriaVacina('todas')" style="background: #0284c7; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer;">Todas (<span id="cat-todas-qtd">18</span>)</button>
+          <button class="btn-categoria-filtro" onclick="filtrarCategoriaVacina('ui-ux')" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">🎨 Visual & Telas (<span id="cat-ui-qtd">6</span>)</button>
+          <button class="btn-categoria-filtro" onclick="filtrarCategoriaVacina('banco')" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">🗄️ Banco de Dados (<span id="cat-banco-qtd">3</span>)</button>
+          <button class="btn-categoria-filtro" onclick="filtrarCategoriaVacina('seguranca')" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">🔒 Segurança & Acesso (<span id="cat-seg-qtd">3</span>)</button>
+          <button class="btn-categoria-filtro" onclick="filtrarCategoriaVacina('estabilidade')" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">⚙️ Estabilidade & Erros (<span id="cat-estab-qtd">6</span>)</button>
+        </div>
+      </div>
+
+      <div id="grade-vacinas-container" class="grade-vacinas">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Detalhe da Vacina / Bloco (Exemplos Contrastantes ❌ vs ✅) -->
+  <div id="modal-vacina-detalhe" class="modal-overlay" onmousedown="if(event.target === event.currentTarget) fecharModalVacinaDetalhe()">
+    <div class="modal-card" style="max-width: 820px;" onmousedown="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:16px;">
+        <h3 id="modal-vacina-titulo" style="margin:0; color:#38bdf8; font-size:1.2rem;">🛡️ Detalhes da Vacina</h3>
+        <button onclick="fecharModalVacinaDetalhe()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;">✕</button>
+      </div>
+      <div id="modal-vacina-conteudo">Carregando detalhes...</div>
+    </div>
+  </div>
+
+  <!-- Modal de Raio-X da Versão Histórica -->
+  <div id="modal-raio-x" class="modal-overlay" onmousedown="if(event.target === event.currentTarget) fecharModalRaioX()">
+    <div class="modal-card" onmousedown="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:16px;">
+        <h3 id="modal-titulo" style="margin:0; color:#38bdf8; font-size:1.2rem;">📸 Raio-X da Versão</h3>
+        <button onclick="fecharModalRaioX()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;">✕</button>
+      </div>
+      <div id="modal-conteudo">Carregando detalhes da versão...</div>
+    </div>
+  </div>
+
+  <!-- Toast Notificação Flutuante -->
+  <div id="toast-sucesso">✅ Comando cirúrgico copiado! Agora é só colar no chat da sua IA (Ctrl + V).</div>
+
+  <script>
+    let Graph;
+    let grafoJaCarregado = false;
+    let globalNodes = [];
+    let globalLinks = [];
+    let modulosExpandidos = new Set();
+    let focoTermo = '';
+    let dadosCompletosGrafo = null;
+    let relatorioSaudeCache = null;
+
+    // Estado do Posto de Vacinas e Blocos (v5.0)
+    let catalogoVacinasCache = null;
+    let vacinasSelecionadas = new Set();
+    let blocosSelecionados = new Set();
+    let categoriaVacinaFiltro = 'todas';
+
+    // Alternador de Abas (Ordem: 0 = Histórico, 1 = Saúde, 2 = Vacinas, 3 = Grafo 3D)
+    function trocarAba(tabId) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      
+      const tabTarget = document.getElementById(tabId);
+      if (tabTarget) tabTarget.classList.add('active');
+
+      const btnMap = {
+        'tab-historico': 0,
+        'tab-saude': 1,
+        'tab-vacinas': 2,
+        'tab-grafo': 3
+      };
+      const btns = document.querySelectorAll('.nav-btn');
+      if (btns[btnMap[tabId]]) btns[btnMap[tabId]].classList.add('active');
+
+      if (tabId === 'tab-historico') carregarHistoricoECofre();
+      if (tabId === 'tab-saude') carregarMonitorSaude();
+      if (tabId === 'tab-vacinas') carregarConstrutorVacinas();
+      if (tabId === 'tab-grafo') {
+        // Carregamento Preguiçoso (Lazy Loading): só ativa o WebGL se o usuário clicar nesta aba!
+        if (!grafoJaCarregado) {
+          grafoJaCarregado = true;
+          carregarGrafo3D();
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // LÓGICA DO CONSTRUTOR DE VACINAS E SUPER-BLOCOS (v5.0)
+    // -------------------------------------------------------------------------
+    async function carregarConstrutorVacinas() {
+      try {
+        const resp = await fetch('/api/vacinas');
+        const dados = await resp.json();
+        catalogoVacinasCache = dados;
+
+        const totalV = dados.vacinas?.length || 0;
+        const totalB = dados.blocos?.length || 0;
+        const elTotalVacLabel = document.getElementById('btn-total-vacinas-label');
+        if (elTotalVacLabel) elTotalVacLabel.innerText = totalV;
+        const elTotalVac = document.getElementById('contador-total-vacinas');
+        if (elTotalVac) elTotalVac.innerText = totalV;
+        const elTotalBloc = document.getElementById('contador-total-blocos');
+        if (elTotalBloc) elTotalBloc.innerText = totalB;
+        const elCatTodas = document.getElementById('cat-todas-qtd');
+        if (elCatTodas) elCatTodas.innerText = totalV;
+
+        const countCat = (cat) => (dados.vacinas || []).filter(v => v.categoria === cat).length;
+        const elCatUi = document.getElementById('cat-ui-qtd');
+        if (elCatUi) elCatUi.innerText = countCat('ui-ux');
+        const elCatBanco = document.getElementById('cat-banco-qtd');
+        if (elCatBanco) elCatBanco.innerText = countCat('banco');
+        const elCatSeg = document.getElementById('cat-seg-qtd');
+        if (elCatSeg) elCatSeg.innerText = countCat('seguranca');
+        const elCatEstab = document.getElementById('cat-estab-qtd');
+        if (elCatEstab) elCatEstab.innerText = countCat('estabilidade');
+
+        // Se for a primeira vez carregando e temos recomendadas, marca as recomendadas!
+        if (vacinasSelecionadas.size === 0 && dados.recomendadas && dados.recomendadas.length > 0) {
+          dados.recomendadas.forEach(id => vacinasSelecionadas.add(id));
+        }
+
+        renderizarBannerRecomendacao();
+        renderizarSuperBlocos();
+        renderizarGradeVacinas();
+        atualizarTelemetriaVacinas();
+      } catch (err) {
+        console.error("Erro ao carregar catálogo de vacinas:", err);
+      }
+    }
+
+    function renderizarBannerRecomendacao() {
+      const banner = document.getElementById('banner-recomendacao-vacinas');
+      const texto = document.getElementById('texto-recomendacao-vacinas');
+      if (!catalogoVacinasCache || !catalogoVacinasCache.recomendadas || catalogoVacinasCache.recomendadas.length === 0) {
+        if (banner) banner.style.display = 'none';
+        return;
+      }
+      const qtd = catalogoVacinasCache.recomendadas.length;
+      texto.innerHTML = `💡 O Mapa analisou seu projeto e pré-selecionou <strong style="color:#f8fafc;">${qtd} vacinas prioritárias</strong> para as dores e alertas encontrados no código!`;
+      if (banner) banner.style.display = 'block';
+    }
+
+    function renderizarSuperBlocos() {
+      const container = document.getElementById('grade-super-blocos');
+      if (!container || !catalogoVacinasCache) return;
+
+      container.innerHTML = catalogoVacinasCache.blocos.map(b => {
+        const sel = blocosSelecionados.has(b.id);
+        return `
+          <div class="cartao-bloco ${sel ? 'selecionado' : ''}" id="bloco-card-${b.id}">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; background: #3730a3; color: #c7d2fe; padding: 3px 8px; border-radius: 6px; font-weight: 700;">Molde de Construção #${b.numero}</span>
+                <button type="button" class="btn-dossie-toggle ${sel ? 'ativo-bloco' : ''}" onclick="toggleBloco('${b.id}')">
+                  ${sel ? '✅ Incluído no Dossiê' : '➕ Incluir no Dossiê'}
+                </button>
+              </div>
+              <h4 style="margin: 0 0 8px 0; font-size: 1.05rem; color: #f8fafc; font-weight: 700;">${b.nome}</h4>
+              <p style="margin: 0 0 14px 0; font-size: 0.84rem; color: #94a3b8; line-height: 1.4;">${b.resumoLeigo}</p>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+              <span style="font-size: 0.78rem; color: #c084fc;">📦 ${b.arquivos.length} arquivos canônicos prontos</span>
+              <button onclick="abrirModalDetalheBloco('${b.id}')" style="background: transparent; border: 1px solid #6366f1; color: #a5b4fc; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s;">
+                👁️ Ver Código Pronto
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderizarGradeVacinas() {
+      const container = document.getElementById('grade-vacinas-container');
+      if (!container || !catalogoVacinasCache) return;
+
+      const recomendadasSet = new Set(catalogoVacinasCache.recomendadas || []);
+
+      const listaFiltrada = catalogoVacinasCache.vacinas.filter(v => {
+        if (categoriaVacinaFiltro === 'todas') return true;
+        return v.categoria === categoriaVacinaFiltro;
+      });
+
+      container.innerHTML = listaFiltrada.map(v => {
+        const sel = vacinasSelecionadas.has(v.id);
+        const ehRecomendada = recomendadasSet.has(v.id);
+        const cat = catalogoVacinasCache.categorias[v.categoria] || { nome: v.categoria };
+
+        return `
+          <div class="cartao-vacina ${sel ? 'selecionada' : ''}" id="vacina-card-${v.id}">
+            <div>
+              <div class="cartao-vacina-cabecalho">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                  <span class="badge-categoria">${cat.nome}</span>
+                  ${ehRecomendada ? '<span class="badge-recomendada">✨ Recomendada para seu App</span>' : ''}
+                </div>
+                <button type="button" class="btn-dossie-toggle ${sel ? 'ativo' : ''}" onclick="toggleVacina('${v.id}')">
+                  ${sel ? '✅ Incluído no Dossiê' : '➕ Incluir no Dossiê'}
+                </button>
+              </div>
+              <div class="cartao-vacina-titulo">#${v.numero}. ${v.nome}</div>
+              <div class="cartao-vacina-resumo">${v.resumoLeigo}</div>
+            </div>
+            <div class="cartao-vacina-rodape">
+              <span style="font-size: 0.78rem; color: #94a3b8;">🎯 Atua em: <strong style="color:#cbd5e1;">${cat.nome}</strong></span>
+              <button onclick="abrirModalDetalheVacina('${v.id}')" style="background: transparent; border: 1px solid #475569; color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;">
+                👁️ Ver Regra: ❌ Erro vs ✅ Jeito Certo
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleVacina(id) {
+      if (vacinasSelecionadas.has(id)) {
+        vacinasSelecionadas.delete(id);
+      } else {
+        vacinasSelecionadas.add(id);
+      }
+      renderizarGradeVacinas();
+      atualizarTelemetriaVacinas();
+    }
+
+    function toggleBloco(id) {
+      if (blocosSelecionados.has(id)) {
+        blocosSelecionados.delete(id);
+      } else {
+        blocosSelecionados.add(id);
+      }
+      renderizarSuperBlocos();
+      atualizarTelemetriaVacinas();
+    }
+
+    function selecionarApenasRecomendadas() {
+      if (!catalogoVacinasCache) return;
+      vacinasSelecionadas.clear();
+      (catalogoVacinasCache.recomendadas || []).forEach(id => vacinasSelecionadas.add(id));
+      renderizarGradeVacinas();
+      atualizarTelemetriaVacinas();
+    }
+
+    function selecionarTodasVacinas() {
+      if (!catalogoVacinasCache) return;
+      (catalogoVacinasCache.vacinas || []).forEach(v => vacinasSelecionadas.add(v.id));
+      renderizarGradeVacinas();
+      atualizarTelemetriaVacinas();
+    }
+
+    function desmarcarTodasVacinas() {
+      vacinasSelecionadas.clear();
+      blocosSelecionados.clear();
+      renderizarGradeVacinas();
+      renderizarSuperBlocos();
+      atualizarTelemetriaVacinas();
+    }
+
+    function filtrarCategoriaVacina(cat) {
+      categoriaVacinaFiltro = cat;
+      document.querySelectorAll('.btn-categoria-filtro').forEach(btn => btn.classList.remove('ativa'));
+      if (event && event.target) event.target.classList.add('ativa');
+      renderizarGradeVacinas();
+    }
+
+    function atualizarTelemetriaVacinas() {
+      const elVac = document.getElementById('contador-vacinas-ativas');
+      const elBlocos = document.getElementById('contador-blocos-ativos');
+      if (elVac) elVac.innerText = vacinasSelecionadas.size;
+      if (elBlocos) elBlocos.innerText = blocosSelecionados.size;
+    }
+
+    function abrirModalDetalheVacina(id) {
+      if (!catalogoVacinasCache) return;
+      const v = catalogoVacinasCache.vacinas.find(item => item.id === id);
+      if (!v) return;
+
+      const modal = document.getElementById('modal-vacina-detalhe');
+      const titulo = document.getElementById('modal-vacina-titulo');
+      const conteudo = document.getElementById('modal-vacina-conteudo');
+
+      titulo.innerHTML = `🛡️ Vacina #${v.numero}: ${v.nome}`;
+      conteudo.innerHTML = `
+        <div style="margin-bottom: 16px;">
+          <p style="color: #cbd5e1; font-size: 0.95rem; margin-top: 0; line-height: 1.4;">
+            <strong>O que ela faz:</strong> ${v.resumoLeigo}
+          </p>
+          <div style="background: #0f172a; border-left: 4px solid #38bdf8; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;">
+            <div style="color: #38bdf8; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 4px;">⚡ Ordem Imperativa para a IA</div>
+            <div style="color: #f8fafc; font-size: 0.9rem;">${v.regraImperativa}</div>
+          </div>
+          <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px;">
+            Bairros Afetados (Globs do Cursor): <code>${v.globs}</code>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div style="background: #18181b; border: 1px solid #7f1d1d; border-radius: 8px; padding: 14px;">
+            <div style="color: #f87171; font-weight: 700; font-size: 0.82rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <span>❌</span> JEITO PROIBIDO (Como a IA costuma errar)
+            </div>
+            <pre style="background: #09090b; padding: 12px; border-radius: 6px; color: #fca5a5; font-size: 0.78rem; overflow-x: auto; white-space: pre-wrap; margin: 0;"><code>${v.exemploErrado.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          </div>
+          <div style="background: #18181b; border: 1px solid #14532d; border-radius: 8px; padding: 14px;">
+            <div style="color: #4ade80; font-weight: 700; font-size: 0.82rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <span>✅</span> PADRÃO OURO BLINDADO (Obrigatório)
+            </div>
+            <pre style="background: #09090b; padding: 12px; border-radius: 6px; color: #86efac; font-size: 0.78rem; overflow-x: auto; white-space: pre-wrap; margin: 0;"><code>${v.exemploBlindado.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          </div>
+        </div>
+      `;
+      modal.style.display = 'flex';
+    }
+
+    function abrirModalDetalheBloco(id) {
+      if (!catalogoVacinasCache) return;
+      const b = catalogoVacinasCache.blocos.find(item => item.id === id);
+      if (!b) return;
+
+      const modal = document.getElementById('modal-vacina-detalhe');
+      const titulo = document.getElementById('modal-vacina-titulo');
+      const conteudo = document.getElementById('modal-vacina-conteudo');
+
+      titulo.innerHTML = `🧱 Molde Canônico #${b.numero}: ${b.nome}`;
+      conteudo.innerHTML = `
+        <div style="margin-bottom: 16px;">
+          <p style="color: #cbd5e1; font-size: 0.95rem; margin-top: 0;">
+            ${b.resumoLeigo}
+          </p>
+          <p style="color: #94a3b8; font-size: 0.85rem;">
+            ${b.descricao}
+          </p>
+        </div>
+        <div>
+          ${b.arquivos.map((a, idx) => `
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; margin-bottom: 14px; overflow: hidden;">
+              <div style="display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 14px; border-bottom: 1px solid #334155;">
+                <span style="color: #38bdf8; font-weight: 700; font-size: 0.85rem;">📁 ${a.caminho}</span>
+                <span style="color: #94a3b8; font-size: 0.78rem;">${a.descricao}</span>
+              </div>
+              <pre style="margin: 0; padding: 14px; color: #f8fafc; font-size: 0.76rem; overflow-x: auto; max-height: 250px; background: #090d16;"><code>${a.conteudo.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      modal.style.display = 'flex';
+    }
+
+    function fecharModalVacinaDetalhe(e) {
+      if (!e || e.target.id === 'modal-vacina-detalhe' || e.type === 'click') {
+        document.getElementById('modal-vacina-detalhe').style.display = 'none';
+      }
+    }
+
+    async function aplicarVacinasNoProjeto() {
+      if (vacinasSelecionadas.size === 0 && blocosSelecionados.size === 0) {
+        return alert("Selecione pelo menos uma Vacina Anti-Erro ou Super-Bloco para aplicar.");
+      }
+
+      const idsVac = Array.from(vacinasSelecionadas);
+      const idsBloc = Array.from(blocosSelecionados);
+
+      try {
+        const resp = await fetch('/api/aplicar-vacinas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idsVacinas: idsVac,
+            idsBlocos: idsBloc
+          })
+        });
+        const res = await resp.json();
+
+        if (res.sucesso) {
+          const stats = res.estatisticas;
+          alert(`💉 PROJETO BLINDADO COM SUCESSO!\n\n` +
+            `📁 Diretório: ${res.projeto}\n` +
+            `📜 Regras Modulares Criadas: ${stats.arquivosMdcCriados.length} arquivos (.cursor/rules/*.mdc)\n` +
+            `⚖️ Manuais Constitucionais: ${stats.arquivosConstituicaoCriados.join(', ')}\n` +
+            (stats.arquivosBlocosCriados.length > 0 ? `🧱 Arquivos de Blocos Canônicos: ${stats.arquivosBlocosCriados.length} arquivos prontos\n` : '') +
+            `\nAgora qualquer IA que abrir o projeto no Cursor, Windsurf ou Antigravity seguirá essas regras automaticamente sem gastar memória excessiva!`);
+        } else {
+          alert("Erro ao aplicar vacinas: " + (res.erro || "Falha desconhecida"));
+        }
+      } catch (err) {
+        alert("Falha de conexão ao tentar aplicar as vacinas.");
+      }
+    }
+
+    async function copiarReceitaBlindada() {
+      if (vacinasSelecionadas.size === 0 && blocosSelecionados.size === 0) {
+        return alert("Selecione pelo menos uma Vacina Anti-Erro ou Super-Bloco para gerar a receita.");
+      }
+
+      const idsVac = Array.from(vacinasSelecionadas);
+      const idsBloc = Array.from(blocosSelecionados);
+
+      try {
+        const resp = await fetch('/api/gerar-prompt-vacinas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idsVacinas: idsVac,
+            idsBlocos: idsBloc
+          })
+        });
+        const res = await resp.json();
+
+        if (res.sucesso && res.prompt) {
+          navigator.clipboard.writeText(res.prompt).then(() => {
+            const toast = document.getElementById('toast-sucesso');
+            toast.innerText = "📋 Dossiê Consultivo copiado com sucesso! Agora é só colar no chat da sua IA (Ctrl + V).";
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3500);
+          });
+        } else {
+          alert("Erro ao gerar receita blindada.");
+        }
+      } catch (err) {
+        alert("Falha ao comunicar com o servidor.");
+      }
+    }
+
+    function voltarParaSelecao() {
+      document.getElementById('dashboard-layer').style.display = 'flex';
+      document.getElementById('dashboard-layer').style.opacity = '1';
+      document.getElementById('navbar').style.display = 'none';
+      grafoJaCarregado = false;
+    }
+
+    function toggleLegenda() {
+      const conteudo = document.getElementById('conteudo-legenda');
+      const setinha = document.getElementById('setinha');
+      if (conteudo.style.display === 'none') {
+        conteudo.style.display = 'block';
+        setinha.innerText = '▼ ESCONDER';
+      } else {
+        conteudo.style.display = 'none';
+        setinha.innerText = '◀ MOSTRAR';
+      }
+    }
+
+    async function procurarPasta() {
+      try {
+        const req = await fetch('/api/pick-folder');
+        const res = await req.json();
+        if (res.caminho) document.getElementById('caminho').value = res.caminho;
+      } catch (err) {}
+    }
+
+    async function iniciarAnalise() {
+      const caminho = document.getElementById('caminho').value.trim();
+      if (!caminho) return alert("Por favor, selecione ou digite o caminho da pasta!");
+      const btn = document.getElementById('btn-analisar');
+      const loading = document.getElementById('loading');
+      btn.disabled = true; loading.style.display = 'block';
+
+      try {
+        const req = await fetch('/api/analisar', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ caminho }) 
+        });
+        const res = await req.json();
+        btn.disabled = false; loading.style.display = 'none';
+
+        if (res.sucesso) {
+          document.getElementById('nome-projeto-ativo').innerText = caminho.split(/[\\/]/).pop();
+          grafoJaCarregado = false;
+          // Abre direto no Monitor de Saúde para o usuário ver os diagnósticos imediatamente
+          trocarAba('tab-saude');
+        } else {
+          alert("Erro: " + res.erro);
+        }
+      } catch (err) {
+        alert("Falha de conexão com o servidor.");
+        btn.disabled = false; loading.style.display = 'none';
+      }
+    }
+
+    // Copiar Comando Pronto para a IA
+    function copiarComandoParaIA(textoComando) {
+      navigator.clipboard.writeText(textoComando).then(() => {
+        const toast = document.getElementById('toast-sucesso');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3500);
+      });
+    }
+
+    // Obter e Copiar Esqueleto Estrutural do Arquivo (Compressão 90% Tokens)
+    async function obterECopiarEsqueleto(arquivo) {
+      try {
+        const req = await fetch('/api/esqueleto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ arquivo })
+        });
+        const res = await req.json();
+        if (res.esqueleto) {
+          const pacoteXML = `<file path="${arquivo}" skeleton="true" tokens_original="${res.tokensOriginal}" tokens_compressed="${res.tokensEsqueleto}">\n${res.esqueleto}\n</file>`;
+          copiarComandoParaIA(pacoteXML);
+          const pct = Math.round((1 - (res.tokensEsqueleto / Math.max(1, res.tokensOriginal))) * 100);
+          alert(`📄 Resumo Leve copiado para a Área de Transferência!\n\nArquivo: ${arquivo}\nTamanho Original: ~${res.tokensOriginal} palavras/tokens\nTamanho Resumido: ~${res.tokensEsqueleto} palavras/tokens\nEconomia: ~${pct}% de memória!\n\nAgora é só colar no chat da sua IA (Ctrl + V) para ela entender a estrutura deste arquivo sem sobrecarregar a memória dela!`);
+        } else {
+          alert("Não foi possível gerar o resumo para este arquivo.");
+        }
+      } catch (err) {
+        alert("Erro ao comunicar com o servidor para gerar esqueleto.");
+      }
+    }
+
+    // Tradutor e Agrupador de Domínios de Negócio (Bairros da Cidade)
+    function obterDominioDeNegocio(caminhoArquivo) {
+       const str = (caminhoArquivo || '').toLowerCase();
+       if (str.includes('hub') || str.includes('compra') || str.includes('cotacao') || str.includes('supplier') || str.includes('fornecedor')) {
+         return '🛒 Compras, Cotações & Fornecedores';
+       }
+       if (str.includes('obra') || str.includes('projeto') || str.includes('budget') || str.includes('etapa')) {
+         return '🏗️ Orçamentos & Gestão de Obras';
+       }
+       if (str.includes('admin') || str.includes('user') || str.includes('role') || str.includes('permission') || str.includes('organization') || str.includes('auth') || str.includes('login')) {
+         return '🔐 Administração, Usuários & Permissões';
+       }
+       if (str.includes('relatorio') || str.includes('report') || str.includes('extrato') || str.includes('drive')) {
+         return '📊 Relatórios, Extratos & Documentos';
+       }
+       if (str.includes('cliente')) {
+         return '👤 Portal do Cliente';
+       }
+       if (str.includes('financeiro') || str.includes('pagamento') || str.includes('billing')) {
+         return '💰 Financeiro & Pagamentos';
+       }
+       return '⚙️ Geral & Infraestrutura';
+    }
+
+    // Dossiê Consolidado Geral (Top Prioridades de todo o sistema)
+    function copiarDossieConsolidado() {
+      if (!relatorioSaudeCache) return alert("Aguarde o carregamento do relatório de saúde.");
+      const saude = relatorioSaudeCache;
+      
+      const godTop = (saude.arquivosDeus || []).slice(0, 3);
+      const viloesTop = (saude.viloesCustoBanco || []).slice(0, 3);
+      const formsTop = (saude.formulariosSemCache || []).slice(0, 3);
+      const memTop = (saude.viloesMemoria || []).slice(0, 2);
+      const autoUpd = saude.statusAtualizacaoApp || {};
+      const modalArr = saude.statusModalArrasto || {};
+
+      let blocoAtualizacao = `🔄 5. SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA (SEM CTRL+F5):\n`;
+      if (autoUpd.temProtecao) {
+        blocoAtualizacao += `- ${autoUpd.statusResumo}\n- Encontrado em: ${(autoUpd.arquivosOndeFoiEncontrado || []).map(a => a.arquivo).join(', ')}`;
+      } else {
+        blocoAtualizacao += `- ${autoUpd.statusResumo || '🚨 AUSENTE: O app não avisa quando há nova atualização'}\n- Tecnologia detectada: ${autoUpd.tecnologiaDetectada || 'Web'}\n${autoUpd.instrucaoCompletaParaIA || ''}`;
+      }
+
+      let blocoModalArrasto = `🪟 6. JANELAS MODAIS FECHANDO SOZINHAS AO ARRASTAR TEXTO:\n`;
+      if (modalArr.temProblema) {
+        blocoModalArrasto += `- ${modalArr.statusResumo}\n${modalArr.instrucaoCompletaParaIA || ''}`;
+      } else {
+        blocoModalArrasto += `- ${modalArr.statusResumo || '✅ Nenhuma modal vulnerável detectada.'}`;
+      }
+
+      let texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O Mapa Contexto realizou uma triagem profunda no meu aplicativo e isolou os pontos mais críticos do sistema.
+Como meu app é grande, reuni aqui as MAIORES PRIORIDADES para você fazer um DIAGNÓSTICO INTEGRADO e me dar um parecer antes de qualquer modificação de código:
+
+👑 1. PILARES MESTRE (ARQUIVOS MAIS IMPORTANTES DA ESTRUTURA):
+${godTop.map(g => `- '${g.arquivo}' (Importância: ${g.scorePageRank}/100 | ${g.dependentesDiretos} arquivos dependentes)`).join('\n') || '- Nenhum'}
+
+💸 2. MAIORES ALERTAS DE CONTA ALTA NO BANCO DE DADOS:
+${viloesTop.map(v => `- '${v.arquivo}': ${v.problemas.join('; ')}`).join('\n') || '- Nenhum'}
+
+📝 3. FORMULÁRIOS COM RISCO DE PERDER DIGITAÇÃO (SEM RASCUNHO):
+${formsTop.map(f => `- '${f.arquivo}': ${f.totalInputs} campos de digitação sem salvamento temporário`).join('\n') || '- Nenhum'}
+
+🏋️ 4. TELAS COM MAIOR PESO DE MEMÓRIA (CELULAR / COMPUTADOR):
+${memTop.map(m => `- '${m.arquivo}' (${m.totalLinhas} linhas): ${m.alertas.join('; ')}`).join('\n') || '- Nenhum'}
+
+${blocoAtualizacao}
+
+${blocoModalArrasto}
+
+SUA MISSÃO COMO MEU CONSULTOR DE CONFIANÇA:
+1. Me explique em português simples e sem termos técnicos difíceis: como essas peças se relacionam no dia a dia de quem usa o aplicativo?
+2. Faça uma TRIAGEM: quais desses itens (incluindo o Aviso de Atualização Automática sem Ctrl+F5 e a Blindagem de Modais que fecham ao arrastar texto, caso estejam vulneráveis) são prioridades que compensa implementar/otimizar agora, e quais nós devemos DEIXAR COMO ESTÃO porque funcionam bem?
+3. Se você recomendar mexer em algum ponto, qual seria a ordem segura (o passo a passo) sem quebrar o app nem a experiência do cliente?
+4. NÃO ALTERE NENHUMA LINHA DE CÓDIGO AGORA. Aguarde minha decisão após ler seu parecer.`;
+
+      copiarComandoParaIA(texto);
+    }
+
+    // Copiar Ordem Específica para Blindar Modais que Fecham ao Arrastar Texto
+    function copiarOrdemCorrecaoModalArrasto() {
+      const modalArr = relatorioSaudeCache?.statusModalArrasto || {};
+      const texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O Mapa Contexto analisou meu aplicativo e detectou o problema clássico de JANELAS MODAIS FECHANDO SOZINHAS quando eu seleciono um texto dentro de um campo e solto o botão do mouse do lado de fora da janela.
+
+🔍 DIAGNÓSTICO DO MAPA CONTEXTO:
+- Status: ${modalArr.statusResumo || 'Modais vulneráveis detectadas'}
+
+${modalArr.instrucaoCompletaParaIA || ''}
+
+SUA MISSÃO AGORA:
+1. Verifique todas as janelas modais apontadas acima (e qualquer outra modal do projeto que use onClick/onclick no fundo escuro).
+2. Me explique em português simples quais janelas você encontrou e confirme que vai trocar o fechamento para verificar onde o clique COMEÇOU (onMouseDown com e.target === e.currentTarget), impedindo que selecionar texto feche a janela.
+3. Aguarde meu "Ok, pode corrigir" antes de alterar o código!`;
+      copiarComandoParaIA(texto);
+    }
+
+    // Copiar Ordem Específica para Instalar o Detector de Atualização (Sem Ctrl+F5)
+    function copiarOrdemInstalacaoAutoUpdate() {
+      const autoUpd = relatorioSaudeCache?.statusAtualizacaoApp || {};
+      const texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+O Mapa Contexto analisou meu aplicativo e detectou que FALTA o sistema de Aviso de Atualização Automática (para o usuário não ficar preso em versão antiga no cache nem precisar apertar Ctrl+F5 quando eu publicar novidades).
+
+🔍 DIAGNÓSTICO DO MAPA CONTEXTO:
+- Status: ${autoUpd.statusResumo || 'Ausente no projeto'}
+- Tecnologia detectada no meu projeto: ${autoUpd.tecnologiaDetectada || 'Web'}
+- Arquivo principal sugerido: ${autoUpd.arquivoEntradaSugerido || 'app.js / App.tsx'}
+
+${autoUpd.instrucaoCompletaParaIA || ''}
+
+SUA MISSÃO AGORA:
+1. Analise a estrutura real do meu projeto e me explique em português simples como você vai encaixar esse aviso elegante de "🚀 Nova atualização disponível! [ 🔄 Atualizar Agora ]".
+2. Me mostre quais arquivos serão criados ou editados e aguarde meu "Ok, pode aplicar" antes de alterar o código!`;
+      copiarComandoParaIA(texto);
+    }
+
+    // Copiar Resposta Pronta de Aprovação para a IA
+    function copiarAutorizacaoCirurgica() {
+      const texto = `Excelente análise! Autorizo executar apenas as melhorias de banco recomendadas com risco real. Mantenha os arquivos de infraestrutura, tipos e formulários curtos intactos. Faça um passo de cada vez e me avise quando concluir.`;
+      copiarComandoParaIA(texto);
+    }
+
+    // Filtrar Alertas na tela por Módulo / Bairro e Ocultar Testes
+    function filtrarAlertasPorModulo() {
+      const select = document.getElementById('select-filtro-modulo-saude');
+      const moduloSelecionado = select ? select.value : 'todos';
+      const btnDossie = document.getElementById('btn-dossie-modulo');
+      const ocultarTestes = document.getElementById('chk-ignorar-testes')?.checked ?? true;
+
+      if (moduloSelecionado === 'todos') {
+        if (btnDossie) btnDossie.style.display = 'none';
+      } else {
+        if (btnDossie) {
+          btnDossie.style.display = 'inline-flex';
+          btnDossie.innerText = `📦 Copiar Dossiê de '${moduloSelecionado}'`;
+        }
+      }
+
+      document.querySelectorAll('.item-alerta').forEach(el => {
+        const mod = el.getAttribute('data-modulo');
+        const isRascunho = el.getAttribute('data-rascunho') === 'true';
+
+        let visivel = true;
+        if (moduloSelecionado !== 'todos' && mod && mod !== moduloSelecionado) {
+          visivel = false;
+        }
+        if (ocultarTestes && isRascunho) {
+          visivel = false;
+        }
+
+        el.style.display = visivel ? 'flex' : 'none';
+      });
+    }
+
+    // Dossiê de um Módulo Específico (ex: Compras, Orçamentos, etc)
+    function copiarDossieModuloSelecionado() {
+      const select = document.getElementById('select-filtro-modulo-saude');
+      const modulo = select.value;
+      if (!relatorioSaudeCache || modulo === 'todos') return;
+
+      const saude = relatorioSaudeCache;
+      const viloes = (saude.viloesCustoBanco || []).filter(v => obterDominioDeNegocio(v.arquivo) === modulo);
+      const forms = (saude.formulariosSemCache || []).filter(f => obterDominioDeNegocio(f.arquivo) === modulo);
+      const mem = (saude.viloesMemoria || []).filter(m => obterDominioDeNegocio(m.arquivo) === modulo);
+      const gods = (saude.arquivosDeus || []).filter(g => obterDominioDeNegocio(g.arquivo) === modulo);
+
+      let texto = `IA, você é o Arquiteto de Software Consultor do meu projeto.
+Estou analisando a saúde e a usabilidade do módulo '${modulo}' do meu aplicativo.
+O Mapa Contexto isolou todos os pontos de atenção deste módulo específico:
+
+${gods.length > 0 ? `👑 PILARES MESTRE NESTA ÁREA:\n${gods.map(g => `- '${g.arquivo}' (Importância ${g.scorePageRank}/100, ${g.dependentesDiretos} arquivos dependentes)`).join('\n')}\n` : ''}
+${viloes.length > 0 ? `💸 ALERTAS DE CONTA ALTA NO BANCO (${viloes.length} telas):\n${viloes.map(v => `- '${v.arquivo}': ${v.problemas.join('; ')}`).join('\n')}\n` : ''}
+${forms.length > 0 ? `📝 FORMULÁRIOS SEM RASCUNHO AUTOMÁTICO (${forms.length} telas):\n${forms.map(f => `- '${f.arquivo}' (${f.totalInputs} campos de digitação sem salvamento temporário)`).join('\n')}\n` : ''}
+${mem.length > 0 ? `🏋️ TELAS PESADAS EM MEMÓRIA (${mem.length} telas):\n${mem.map(m => `- '${m.arquivo}' (${m.totalLinhas} linhas): ${m.alertas.join('; ')}`).join('\n')}\n` : ''}
+
+SUA MISSÃO COMO CONSULTOR:
+1. Me explique em português simples: o que esse módulo faz para quem usa o sistema e como essas telas trabalham juntas?
+2. Esse volume de consultas ou tamanho de tela é justificado pela regra de negócio dessa área, ou tem desperdício claro?
+3. Se você recomenda otimizar algo, o que deve ser feito primeiro sem quebrar a rotina dos usuários?
+4. NÃO ALTERE NENHUMA LINHA DE CÓDIGO AGORA. Aguarde minha aprovação após o parecer.`;
+
+      copiarComandoParaIA(texto);
+    }
+
+    // Inicialização do Grafo 3D
+    async function carregarGrafo3D() {
+      const resposta = await fetch('/api/grafo');
+      dadosCompletosGrafo = await resposta.json();
+      
+      globalNodes = [];
+      globalLinks = [];
+      modulosExpandidos = new Set();
+      
+      const arquivosVistos = new Set();
+      const dominiosUnicos = new Set();
+
+      dadosCompletosGrafo.nodes.forEach(no => {
+        const dominio = obterDominioDeNegocio(no.arquivo);
+        dominiosUnicos.add(dominio);
+
+        const macroId = 'macro::' + dominio;
+        if (!globalNodes.some(n => n.id === macroId)) {
+           globalNodes.push({
+             id: macroId, dominio: dominio,
+             name: '🏢 Módulo: ' + dominio,
+             val: 20, color: '#8b5cf6', type: 'macro'
+           });
+        }
+
+        if (!arquivosVistos.has(no.arquivo)) {
+          arquivosVistos.add(no.arquivo);
+          globalNodes.push({
+            id: no.arquivo, dominio: dominio,
+            name: '📁 ' + no.arquivo.split('/').pop().replace(/\.[^/.]+$/, ""),
+            val: 8, color: '#3b82f6', type: 'file'
+          });
+          globalLinks.push({ source: no.arquivo, target: macroId, type: 'physics_tether' });
+        }
+
+        const radioativa = no.tags && no.tags.includes('DATABASE_MUTATION');
+        globalNodes.push({
+          id: no.id, dominio: dominio,
+          name: (radioativa ? '⚠️ ' : '⚙️ ') + no.nome,
+          val: radioativa ? 6 : 3,
+          color: radioativa ? '#ef4444' : '#10b981',
+          type: 'function', isDb: radioativa
+        });
+        globalLinks.push({ source: no.id, target: no.arquivo, type: 'physics_tether' });
+      });
+
+      const macroEdgesSet = new Set();
+      dadosCompletosGrafo.edges.forEach(aresta => {
+         const noOrigem = globalNodes.find(n => n.id === aresta.origem);
+         const noDestino = globalNodes.find(n => n.id === aresta.destino);
+         if (!noOrigem || !noDestino) return;
+
+         const edgeColor = aresta.tipo_relacao.includes('implicit') ? '#d946ef' : '#f59e0b';
+         globalLinks.push({
+            source: aresta.origem, target: aresta.destino,
+            color: edgeColor, type: 'real_edge'
+         });
+
+         if (noOrigem.dominio !== noDestino.dominio) {
+            const macroEdgeKey = noOrigem.dominio + '->' + noDestino.dominio;
+            if (!macroEdgesSet.has(macroEdgeKey)) {
+               macroEdgesSet.add(macroEdgeKey);
+               globalLinks.push({
+                  source: 'macro::' + noOrigem.dominio, target: 'macro::' + noDestino.dominio,
+                  color: edgeColor, type: 'macro_edge'
+               });
+            }
+         }
+      });
+
+      const selectFoco = document.getElementById('select-focus');
+      selectFoco.innerHTML = '<option value="">-- Visão Global (Todos) --</option>';
+      Array.from(dominiosUnicos).sort().forEach(mod => {
+         const opt = document.createElement('option');
+         opt.value = mod; opt.innerHTML = mod; selectFoco.appendChild(opt);
+      });
+
+      document.getElementById('grafo-container').innerHTML = '';
+      Graph = ForceGraph3D()(document.getElementById('grafo-container'))
+        .graphData({ nodes: globalNodes, links: globalLinks })
+        .nodeLabel('name')
+        .nodeColor('color')
+        .nodeVal('val')
+        .nodeVisibility(no => isNodeVisible(no))
+        .linkColor('color')
+        .linkVisibility(link => isLinkVisible(link))
+        .linkDirectionalArrowLength(link => (link.type === 'real_edge' || link.type === 'macro_edge') ? 6 : 0)
+        .linkDirectionalArrowRelPos(1)
+        .linkOpacity(0.5)
+        .onNodeClick(no => {
+           if (no.type === 'macro') {
+              if (modulosExpandidos.has(no.dominio)) {
+                 modulosExpandidos.delete(no.dominio);
+              } else {
+                 modulosExpandidos.add(no.dominio);
+                 const distance = 150; const distRatio = 1 + distance/Math.hypot(no.x, no.y, no.z);
+                 Graph.cameraPosition({ x: no.x * distRatio, y: no.y * distRatio, z: no.z * distRatio }, no, 2000);
+              }
+              atualizarVisibilidade();
+           }
+        });
+
+      atualizarVisibilidade();
+    }
+
+    function expandirTudo() {
+       globalNodes.filter(n => n.type === 'macro').forEach(n => modulosExpandidos.add(n.dominio));
+       atualizarVisibilidade();
+    }
+
+    function recolherTudo() {
+       modulosExpandidos.clear();
+       atualizarVisibilidade();
+    }
+
+    function aplicarFoco() {
+      focoTermo = document.getElementById('select-focus').value;
+      if (focoTermo) {
+         modulosExpandidos.clear();
+         modulosExpandidos.add(focoTermo);
+      } else {
+         recolherTudo();
+      }
+      atualizarVisibilidade();
+    }
+
+    function atualizarVisibilidade() {
+      if (Graph) {
+        Graph.nodeVisibility(no => isNodeVisible(no));
+        Graph.linkVisibility(link => isLinkVisible(link));
+      }
+    }
+
+    function isNodeVisible(no) {
+      if (focoTermo && no.dominio !== focoTermo) return false;
+      const isExpandido = modulosExpandidos.has(no.dominio);
+      const showFiles = document.getElementById('chk-files').checked;
+      const showLogic = document.getElementById('chk-logic').checked;
+      const showDb = document.getElementById('chk-db').checked;
+
+      if (no.type === 'macro') return !isExpandido;
+      if (no.type === 'file') return isExpandido && showFiles;
+      if (no.type === 'function') {
+         if (!isExpandido) return false;
+         if (no.isDb) return showDb;
+         return showLogic;
+      }
+      return true;
+    }
+
+    function isLinkVisible(link) {
+      const srcNode = link.source;
+      const tgtNode = link.target;
+      if (!isNodeVisible(srcNode) || !isNodeVisible(tgtNode)) return false;
+      if (link.type === 'physics_tether') return false;
+      return true;
+    }
+
+    // ABA 2: Carregador do Monitor de Saúde & Custos
+    async function carregarMonitorSaude() {
+      try {
+        const resp = await fetch('/api/saude');
+        const saude = await resp.json();
+        relatorioSaudeCache = saude;
+
+        // 1. Atualizar KPIs do topo
+        const kpis = saude.kpisResumo || {};
+        const econ = saude.economiaTokens || {};
+
+        document.getElementById('kpi-tokens-pct').innerText = econ.porcentagemEconomia || '85%';
+        document.getElementById('kpi-tokens-qtd').innerText = `~${(econ.tokensEconomizadosEstimados || 75000).toLocaleString('pt-BR')} tokens economizados`;
+        
+        document.getElementById('kpi-arquivos').innerText = kpis.totalArquivos || '0';
+        document.getElementById('kpi-arquivos-sub').innerText = `${dadosCompletosGrafo?.nodes?.length || 0} funções mapeadas`;
+
+        document.getElementById('kpi-tabelas').innerText = kpis.totalTabelasBanco || '0';
+        document.getElementById('kpi-tabelas-sub').innerText = `${(saude.tabelasBanco?.lista || []).slice(0, 3).join(', ') || 'Nenhuma detectada'}`;
+
+        document.getElementById('kpi-custos').innerText = kpis.totalAlertasCustoBanco || '0';
+        document.getElementById('kpi-forms').innerText = kpis.totalFormulariosSemCache || '0';
+        document.getElementById('kpi-seguranca').innerText = kpis.totalTravasSeguranca || '0';
+        document.getElementById('kpi-godnodes').innerText = kpis.totalArquivosDeus || (saude.arquivosDeus?.length || 0);
+
+        // 1.2 KPI e Banner do Detector de Atualização Automática (Sem Ctrl+F5)
+        const autoUpd = saude.statusAtualizacaoApp || {};
+        const kpiAutoCard = document.getElementById('kpi-card-autoupdate');
+        const kpiAutoVal = document.getElementById('kpi-autoupdate');
+        const kpiAutoSub = document.getElementById('kpi-autoupdate-sub');
+        const divStatusAuto = document.getElementById('card-status-atualizacao');
+
+        if (autoUpd.temProtecao) {
+          if (kpiAutoCard) kpiAutoCard.className = 'kpi-card destaque-verde';
+          if (kpiAutoVal) kpiAutoVal.innerText = '✅ Ativo';
+          if (kpiAutoSub) kpiAutoSub.innerText = 'Não exige Ctrl+F5';
+          if (divStatusAuto) {
+            const listaArq = (autoUpd.arquivosOndeFoiEncontrado || []).map(a => `<code>${a.arquivo}</code>`).join(', ');
+            divStatusAuto.style.borderColor = '#10b981';
+            divStatusAuto.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+                <div>
+                  <h3 style="margin:0 0 6px 0; color:#10b981; font-size:1.05rem;">
+                    ✅ Aviso Automático de Atualização (Sem Ctrl+F5): PROTEGIDO!
+                  </h3>
+                  <p style="margin:0; color:#cbd5e1; font-size:0.86rem; line-height:1.4;">
+                    Este projeto já possui detector de nova versão ativo (${listaArq || 'configurado'}). Quando você publica melhorias, os usuários são avisados sem ficarem presos na versão antiga.
+                  </p>
+                </div>
+              </div>
+            `;
+          }
+        } else {
+          if (kpiAutoCard) kpiAutoCard.className = 'kpi-card destaque-vermelho';
+          if (kpiAutoVal) kpiAutoVal.innerText = '🚨 Falta';
+          if (kpiAutoSub) kpiAutoSub.innerText = 'Exige Ctrl+F5 hoje';
+          if (divStatusAuto) {
+            divStatusAuto.style.borderColor = '#f59e0b';
+            divStatusAuto.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+                <div style="flex:1; min-width:280px;">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+                    <span style="background:rgba(245, 158, 11, 0.2); color:#fbbf24; border:1px solid #f59e0b; padding:3px 8px; border-radius:6px; font-size:0.75rem; font-weight:700;">🚨 FALTA NESTE PROJETO</span>
+                    <span style="background:#0f172a; color:#38bdf8; border:1px solid #334155; padding:3px 8px; border-radius:6px; font-size:0.75rem;">Tecnologia: ${autoUpd.tecnologiaDetectada || 'Web'}</span>
+                  </div>
+                  <h3 style="margin:0 0 6px 0; color:#f8fafc; font-size:1.08rem;">
+                    🔄 Falta o Aviso Automático de "Sistema Atualizado" (Sem precisar de Ctrl+F5)
+                  </h3>
+                  <p style="margin:0; color:#cbd5e1; font-size:0.85rem; line-height:1.45;">
+                    ${autoUpd.explicacaoLeiga || 'Quando você atualiza o aplicativo, o navegador dos clientes guarda a versão antiga na memória. Sem essa proteção, eles precisam apertar Ctrl+F5 para ver suas melhorias.'}
+                  </p>
+                  <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.8rem;">
+                    💡 <em>Nota: Essa instrução já foi incluída automaticamente no botão azul <strong>"Check-up Geral para a IA"</strong> lá em cima, ou você pode copiar apenas o pedido dela no botão ao lado!</em>
+                  </p>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+                  <button class="btn-primary" onclick="copiarOrdemInstalacaoAutoUpdate()" style="width:auto; padding:12px 18px; background:#f59e0b; color:#0f172a; font-weight:700; font-size:0.86rem; display:flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(245,158,11,0.3);">
+                    <span>📋</span> Copiar Pedido de Instalação para a IA
+                  </button>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        // 1.3 KPI e Banner do Detector de Modais Fechando ao Arrastar Texto
+        const modalArr = saude.statusModalArrasto || {};
+        const kpiModalCard = document.getElementById('kpi-card-modal-arrasto');
+        const kpiModalVal = document.getElementById('kpi-modal-arrasto');
+        const kpiModalSub = document.getElementById('kpi-modal-arrasto-sub');
+        const divStatusModal = document.getElementById('card-status-modal-arrasto');
+
+        if (modalArr.temProblema) {
+          const qtdArq = modalArr.totalArquivosVulneraveis || 0;
+          if (kpiModalCard) kpiModalCard.className = 'kpi-card destaque-vermelho';
+          if (kpiModalVal) kpiModalVal.innerText = `🚨 ${qtdArq} arq.`;
+          if (kpiModalSub) kpiModalSub.innerText = 'Fecham ao arrastar texto!';
+          if (divStatusModal) {
+            const listaHtml = (modalArr.arquivosVulneraveis || []).slice(0, 6).map(a =>
+              `<span style="display:inline-block; background:#0f172a; border:1px solid #ef4444; color:#fca5a5; padding:3px 8px; border-radius:6px; font-size:0.76rem; margin:3px 4px 0 0;"><code>${a.arquivo}</code> (L.${a.linhasVulneraveis.map(l => l.linha).join(', ')})</span>`
+            ).join('');
+            divStatusModal.style.borderColor = '#ef4444';
+            divStatusModal.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+                <div style="flex:1; min-width:280px;">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+                    <span style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid #ef4444; padding:3px 8px; border-radius:6px; font-size:0.75rem; font-weight:700;">🚨 VULNERÁVEL (${qtdArq} arquivo${qtdArq > 1 ? 's' : ''})</span>
+                  </div>
+                  <h3 style="margin:0 0 6px 0; color:#f8fafc; font-size:1.08rem;">
+                    🪟 Janelas Modais Fechando Sozinhas ao Selecionar e Arrastar Texto
+                  </h3>
+                  <p style="margin:0; color:#cbd5e1; font-size:0.85rem; line-height:1.45;">
+                    ${modalArr.explicacaoLeiga || 'Quando você seleciona um texto dentro de uma janela e solta o mouse fora, ela fecha na sua cara.'}
+                  </p>
+                  <div style="margin-top:8px;">
+                    <span style="font-size:0.78rem; color:#94a3b8; font-weight:600;">Onde o sensor achou o problema:</span><br>
+                    ${listaHtml}
+                  </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+                  <button class="btn-primary" onclick="copiarOrdemCorrecaoModalArrasto()" style="width:auto; padding:12px 18px; background:#ef4444; color:#ffffff; font-weight:700; font-size:0.86rem; display:flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(239,68,68,0.35);">
+                    <span>📋</span> Copiar Pedido de Correção para a IA
+                  </button>
+                </div>
+              </div>
+            `;
+          }
+        } else {
+          if (kpiModalCard) kpiModalCard.className = 'kpi-card destaque-verde';
+          if (kpiModalVal) kpiModalVal.innerText = '✅ Blindado';
+          if (kpiModalSub) kpiModalSub.innerText = 'Não fecha ao arrastar';
+          if (divStatusModal) {
+            divStatusModal.style.borderColor = '#10b981';
+            divStatusModal.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+                <div>
+                  <h3 style="margin:0 0 6px 0; color:#10b981; font-size:1.05rem;">
+                    ✅ Janelas Modais Anti-Arrasto: PROTEGIDO!
+                  </h3>
+                  <p style="margin:0; color:#cbd5e1; font-size:0.86rem; line-height:1.4;">
+                    ${modalArr.statusResumo || 'Nenhuma janela modal com fechamento vulnerável ao selecionar/arrastar texto foi detectada neste projeto.'}
+                  </p>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        // Popula o Seletor de Módulos (Bairros)
+        const selectMod = document.getElementById('select-filtro-modulo-saude');
+        if (selectMod) {
+          const modulosDetectados = new Set();
+          (saude.arquivosDeus || []).forEach(g => modulosDetectados.add(obterDominioDeNegocio(g.arquivo)));
+          (saude.viloesCustoBanco || []).forEach(v => modulosDetectados.add(obterDominioDeNegocio(v.arquivo)));
+          (saude.formulariosSemCache || []).forEach(f => modulosDetectados.add(obterDominioDeNegocio(f.arquivo)));
+          (saude.viloesMemoria || []).forEach(m => modulosDetectados.add(obterDominioDeNegocio(m.arquivo)));
+
+          const valAtual = selectMod.value;
+          selectMod.innerHTML = '<option value="todos">-- Todos os Módulos (Visão Global) --</option>' +
+            Array.from(modulosDetectados).sort().map(m => `<option value="${m}">${m}</option>`).join('');
+          if (valAtual && modulosDetectados.has(valAtual)) selectMod.value = valAtual;
+        }
+
+        // 1.5 Arquivos-Deus & Pilares Mestre
+        const divGod = document.getElementById('lista-godnodes');
+        if (!saude.arquivosDeus || saude.arquivosDeus.length === 0) {
+          divGod.innerHTML = '<p style="color:#10b981; font-size:0.9rem;">✅ Projeto bem modularizado! Nenhum arquivo concentra dependências excessivas.</p>';
+        } else {
+          divGod.innerHTML = saude.arquivosDeus.map(g => {
+            const mod = obterDominioDeNegocio(g.arquivo);
+            return `
+              <div class="item-alerta critico" data-modulo="${mod}" style="border-left-color: #a855f7;">
+                <div class="item-info">
+                  <div class="item-arquivo">
+                    👑 ${g.arquivo} 
+                    <span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid #9333ea; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; margin-left: 6px;">Importância: ${g.scorePageRank}/100</span>
+                    <span style="color:#94a3b8; font-size:0.75rem; margin-left:6px;">[${mod}]</span>
+                  </div>
+                  <div class="item-detalhe">
+                    ⚠️ <strong>${g.dependentesDiretos} outros arquivos</strong> dependem deste pilar diretamente. Se for alterado com erro, essas telas param de funcionar juntas.
+                  </div>
+                </div>
+                <div style="display:flex; gap:6px; flex-shrink:0;">
+                  <button class="btn-copiar-ia" style="background:#334155; padding: 6px 12px; font-size: 0.78rem;" onclick="obterECopiarEsqueleto('${g.arquivo.replace(/'/g, "\\'")}')" title="Copia um resumo leve do arquivo para a IA ler sem estourar a memória">📄 Copiar Resumo Leve</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 2. Vilões de Custo no Banco
+        const divViloes = document.getElementById('lista-viloes-banco');
+        if (!saude.viloesCustoBanco || saude.viloesCustoBanco.length === 0) {
+          divViloes.innerHTML = '<p style="color:#10b981; font-size:0.9rem;">✅ Nenhuma consulta cara ou loop crítico de banco encontrado!</p>';
+        } else {
+          divViloes.innerHTML = saude.viloesCustoBanco.map(v => {
+            const mod = obterDominioDeNegocio(v.arquivo);
+            return `
+              <div class="item-alerta ${v.gravidade === 'CRÍTICA' ? 'critico' : 'alerta'}" data-modulo="${mod}" data-rascunho="${v.isRascunhoTeste ? 'true' : 'false'}">
+                <div class="item-info">
+                  <div class="item-arquivo">${v.arquivo} <span style="color:#94a3b8; font-size:0.75rem;">[${mod}]</span></div>
+                  <div class="item-detalhe">${v.problemas.join('<br>')}</div>
+                </div>
+                <div style="font-size:0.75rem; color:#f87171; padding: 4px 8px; background:#1e293b; border-radius:6px; font-weight:600; white-space:nowrap;">
+                  ${v.gravidade === 'CRÍTICA' ? '🔥 Atenção Alta' : '⚠️ Moderado'}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 3. Formulários em Risco
+        const divForms = document.getElementById('lista-forms-risco');
+        if (!saude.formulariosSemCache || saude.formulariosSemCache.length === 0) {
+          divForms.innerHTML = '<p style="color:#10b981; font-size:0.9rem;">✅ Todos os formulários possuem salvamento de rascunho em cache!</p>';
+        } else {
+          divForms.innerHTML = saude.formulariosSemCache.map(f => {
+            const mod = obterDominioDeNegocio(f.arquivo);
+            return `
+              <div class="item-alerta alerta" data-modulo="${mod}" data-rascunho="${f.isRascunhoTeste ? 'true' : 'false'}">
+                <div class="item-info">
+                  <div class="item-arquivo">${f.arquivo} <span style="color:#94a3b8; font-size:0.75rem;">[${mod}]</span></div>
+                  <div class="item-detalhe">${f.totalInputs} campos de digitação sem salvamento temporário (se recarregar a tela, perde o que digitou).</div>
+                </div>
+                <div style="font-size:0.75rem; color:#f59e0b; padding: 4px 8px; background:#1e293b; border-radius:6px; font-weight:600; white-space:nowrap;">
+                  📝 ${f.totalInputs} campos
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 4. Memória e Peso
+        const divMem = document.getElementById('lista-viloes-memoria');
+        if (!saude.viloesMemoria || saude.viloesMemoria.length === 0) {
+          divMem.innerHTML = '<p style="color:#10b981; font-size:0.9rem;">✅ Nenhuma tela com sobrecarga de memória identificada.</p>';
+        } else {
+          divMem.innerHTML = saude.viloesMemoria.map(m => {
+            const mod = obterDominioDeNegocio(m.arquivo);
+            return `
+              <div class="item-alerta alerta" data-modulo="${mod}" data-rascunho="${m.isRascunhoTeste ? 'true' : 'false'}">
+                <div class="item-info">
+                  <div class="item-arquivo">${m.arquivo} (${m.totalLinhas} linhas) <span style="color:#94a3b8; font-size:0.75rem;">[${mod}]</span></div>
+                  <div class="item-detalhe">${m.alertas.join('<br>')}</div>
+                </div>
+                <button class="btn-copiar-ia" style="background:#334155; padding: 6px 12px; font-size: 0.78rem;" onclick="obterECopiarEsqueleto('${m.arquivo.replace(/'/g, "\\'")}')" title="Copia um resumo leve do arquivo para a IA ler sem estourar a memória">📄 Copiar Resumo Leve</button>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 5. Lógicas e Telas Gêmeas
+        const divGemeos = document.getElementById('lista-gemeos');
+        if (!saude.logicasGemeas || saude.logicasGemeas.length === 0) {
+          divGemeos.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">Nenhuma duplicidade expressiva encontrada entre telas.</p>';
+        } else {
+          divGemeos.innerHTML = saude.logicasGemeas.map(g => {
+            return `
+              <div class="item-alerta">
+                <div class="item-info">
+                  <div class="item-arquivo">${g.arquivoA} <span style="color:#38bdf8;">↔</span> ${g.arquivoB}</div>
+                  <div class="item-detalhe">${g.motivo} (${g.grauSimilaridade} de semelhança)</div>
+                </div>
+                <div style="font-size:0.75rem; color:#38bdf8; padding: 4px 8px; background:#1e293b; border-radius:6px; font-weight:600; white-space:nowrap;">
+                  👯 ${g.grauSimilaridade}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // 6. Maiores Arquivos
+        const divMaiores = document.getElementById('lista-maiores-arquivos');
+        const maxLinhas = saude.maioresArquivos?.[0]?.linhas || 500;
+        divMaiores.innerHTML = (saude.maioresArquivos || []).slice(0, 5).map(m => {
+          const pct = Math.min(100, Math.round((m.linhas / maxLinhas) * 100));
+          return `
+            <div class="barra-arquivo">
+              <div class="barra-label">
+                <span>${m.arquivo}</span>
+                <span>${m.linhas} linhas (${m.tamanhoKB} KB)</span>
+              </div>
+              <div class="barra-trilho">
+                <div class="barra-preenchimento" style="width: ${pct}%;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Aplica o filtro de módulo e rascunhos imediatamente
+        filtrarAlertasPorModulo();
+
+        // Carrega o Caderno de Vistoria (Checklist) e popula o seletor de arquivos de mudanças
+        await carregarChecklistProjeto();
+        popularSelectArquivosMudanca();
+
+      } catch (err) {
+        console.error("Erro ao carregar monitor de saúde:", err);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // CADERNO DE VISTORIA & CHECKLIST PERSISTENTE (FEITO x PENDENTE x IGNORADO)
+    // -------------------------------------------------------------------------
+    let checklistCache = null;
+    let filtroChecklistAtual = 'todos';
+
+    async function carregarChecklistProjeto() {
+      try {
+        const resp = await fetch('/api/checklist');
+        if (!resp.ok) return;
+        const dados = await resp.json();
+        checklistCache = dados;
+
+        const totais = dados.totais || { total: 0, feitos: 0, pendentes: 0, ignorados: 0 };
+        const elTodos = document.getElementById('chk-qtd-todos');
+        const elPend = document.getElementById('chk-qtd-pendentes');
+        const elFeitos = document.getElementById('chk-qtd-feitos');
+        const elIgnorados = document.getElementById('chk-qtd-ignorados');
+        const badgeStatus = document.getElementById('badge-checklist-status');
+
+        if (elTodos) elTodos.innerText = totais.total;
+        if (elPend) elPend.innerText = totais.pendentes;
+        if (elFeitos) elFeitos.innerText = totais.feitos;
+        if (elIgnorados) elIgnorados.innerText = totais.ignorados;
+
+        if (badgeStatus) {
+          badgeStatus.innerHTML = `<span>✅ ${totais.feitos} Feitos</span> &bull; <span style="color:#fbbf24;">⏳ ${totais.pendentes} Pendentes</span> &bull; <span style="color:#94a3b8;">🚫 ${totais.ignorados} Deixar quieto</span>`;
+        }
+
+        renderizarGradeChecklist();
+      } catch (err) {
+        console.error("Erro ao carregar checklist:", err);
+      }
+    }
+
+    function renderizarGradeChecklist() {
+      const container = document.getElementById('grade-checklist-itens');
+      if (!container || !checklistCache || !checklistCache.itens) return;
+
+      const itensFiltrados = checklistCache.itens.filter(i => {
+        if (filtroChecklistAtual === 'todos') return true;
+        return i.status === filtroChecklistAtual;
+      });
+
+      if (itensFiltrados.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: #94a3b8; background: #0f172a; border-radius: 8px;">Nenhum item com status '${filtroChecklistAtual}'.</div>`;
+        return;
+      }
+
+      container.innerHTML = itensFiltrados.map(item => {
+        const statusClass = `status-${item.status}`;
+        let statusBadge = '';
+        if (item.status === 'feito') {
+          statusBadge = '<span style="background: rgba(16, 185, 129, 0.2); color: #4ade80; border: 1px solid #059669; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;">✅ FEITO</span>';
+        } else if (item.status === 'ignorado') {
+          statusBadge = '<span style="background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border: 1px solid #475569; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;">🚫 DEIXAR COMO ESTÁ</span>';
+        } else {
+          statusBadge = '<span style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #d97706; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;">⏳ PENDENTE</span>';
+        }
+
+        return `
+          <div class="cartao-checklist ${statusClass}">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+                <div style="font-weight: 700; font-size: 0.92rem; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+                  <span>${item.icone || '📌'}</span> ${item.titulo}
+                </div>
+                ${statusBadge}
+              </div>
+              <p style="margin: 0; color: #cbd5e1; font-size: 0.82rem; line-height: 1.4;">
+                ${item.explicacaoLeiga}
+              </p>
+              ${item.observacao ? `<div style="margin-top: 6px; font-size: 0.76rem; color: #94a3b8; font-style: italic;">Nota: ${item.observacao}</div>` : ''}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 8px;">
+              <span style="font-size: 0.72rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Sua decisão:</span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn-status-pilula ${item.status === 'feito' ? 'ativo-feito' : ''}" onclick="alterarStatusChecklist('${item.id}', 'feito')" title="Marcar como já feito">
+                  ✅ Feito
+                </button>
+                <button type="button" class="btn-status-pilula ${item.status === 'pendente' ? 'ativo-pendente' : ''}" onclick="alterarStatusChecklist('${item.id}', 'pendente')" title="Deixar pendente para avaliar depois">
+                  ⏳ Pendente
+                </button>
+                <button type="button" class="btn-status-pilula ${item.status === 'ignorado' ? 'ativo-ignorado' : ''}" onclick="alterarStatusChecklist('${item.id}', 'ignorado')" title="Decidi não mexer / deixar como está">
+                  🚫 Não mexer
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function alterarStatusChecklist(itemId, novoStatus) {
+      try {
+        const resp = await fetch('/api/checklist/atualizar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, status: novoStatus })
+        });
+        const res = await resp.json();
+        if (res.sucesso && res.checklist) {
+          checklistCache = res.checklist;
+          const totais = res.checklist.totais;
+          document.getElementById('chk-qtd-todos').innerText = totais.total;
+          document.getElementById('chk-qtd-pendentes').innerText = totais.pendentes;
+          document.getElementById('chk-qtd-feitos').innerText = totais.feitos;
+          document.getElementById('chk-qtd-ignorados').innerText = totais.ignorados;
+
+          const badgeStatus = document.getElementById('badge-checklist-status');
+          if (badgeStatus) {
+            badgeStatus.innerHTML = `<span>✅ ${totais.feitos} Feitos</span> &bull; <span style="color:#fbbf24;">⏳ ${totais.pendentes} Pendentes</span> &bull; <span style="color:#94a3b8;">🚫 ${totais.ignorados} Deixar quieto</span>`;
+          }
+
+          renderizarGradeChecklist();
+
+          const toast = document.getElementById('toast-sucesso');
+          if (novoStatus === 'ignorado') {
+            toast.innerText = "🚫 Marcado como 'Deixar como está'. A IA não voltará a sugerir alterações nele nas próximas mudanças!";
+          } else if (novoStatus === 'feito') {
+            toast.innerText = "✅ Item gravado como FEITO no histórico do projeto!";
+          } else {
+            toast.innerText = "⏳ Item gravado como PENDENTE.";
+          }
+          toast.style.display = 'block';
+          setTimeout(() => { toast.style.display = 'none'; }, 3500);
+        }
+      } catch (err) {
+        alert("Falha ao atualizar checklist no servidor.");
+      }
+    }
+
+    function filtrarItensChecklist(status) {
+      filtroChecklistAtual = status;
+      ['todos', 'pendente', 'feito', 'ignorado'].forEach(st => {
+        const btn = document.getElementById(`filtro-check-${st}`);
+        if (btn) {
+          if (st === status) {
+            btn.classList.add('ativa');
+          } else {
+            btn.classList.remove('ativa');
+          }
+        }
+      });
+      renderizarGradeChecklist();
+    }
+
+    function copiarChecklistParaIA() {
+      if (!checklistCache || !checklistCache.itens) {
+        return alert("O checklist ainda está carregando.");
+      }
+
+      const feitos = checklistCache.itens.filter(i => i.status === 'feito');
+      const ignorados = checklistCache.itens.filter(i => i.status === 'ignorado');
+      const pendentes = checklistCache.itens.filter(i => i.status === 'pendente');
+
+      const texto = `IA, este é o CADERNO DE VISTORIA DO MEU PROJETO com as decisões já tomadas pelo usuário:
+
+✅ 1. MELHORIAS JÁ FEITAS NO CÓDIGO (${feitos.length} itens):
+${feitos.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- Nenhum'}
+
+🚫 2. DECIDIDO NÃO MEXER / DEIXAR COMO ESTÁ (${ignorados.length} itens - NÃO REAVALIE):
+${ignorados.map(i => `- ${i.icone} ${i.titulo}`).join('\n') || '- Nenhum'}
+
+⏳ 3. PENDENTES DE DECISÃO (${pendentes.length} itens):
+${pendentes.map(i => `- ${i.icone} ${i.titulo}: ${i.explicacaoLeiga}`).join('\n') || '- Nenhum'}
+
+DIRETRIZ OBRIGATÓRIA PARA SUAS RESPOSTAS:
+Nunca gaste tokens nem sugira modificações nos itens marcados como 'DEIXAR COMO ESTÁ' ou 'JÁ FEITO'. Concentre-se apenas nas novas funcionalidades pedidas pelo usuário ou nos itens que estão pendentes.`;
+
+      copiarComandoParaIA(texto);
+    }
+
+    function popularSelectArquivosMudanca() {
+      const select = document.getElementById('select-arquivo-mudanca');
+      if (!select) return;
+
+      const arquivos = (relatorioSaudeCache?.maioresArquivos || []).map(m => m.arquivo)
+        .concat((relatorioSaudeCache?.arquivosDeus || []).map(g => g.arquivo));
+      
+      const unicos = Array.from(new Set(arquivos));
+      if (unicos.length === 0) {
+        select.innerHTML = '<option value="app.js">app.js (Arquivo Principal)</option>';
+        return;
+      }
+
+      select.innerHTML = '<option value="">-- Selecione o arquivo ou deixe automático --</option>' +
+        unicos.map(a => `<option value="${a}">${a}</option>`).join('');
+    }
+
+    async function gerarOrdemMudancaEspecifica() {
+      const input = document.getElementById('input-descricao-mudanca');
+      const descricao = input ? input.value.trim() : '';
+      if (!descricao) {
+        return alert("Por favor, digite o que você quer mudar ou criar no aplicativo antes de gerar a ordem!");
+      }
+
+      const select = document.getElementById('select-arquivo-mudanca');
+      const arquivoAlvo = select ? select.value : '';
+
+      try {
+        const resp = await fetch('/api/analisar-mudanca', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            descricaoMudanca: descricao,
+            arquivoAlvo: arquivoAlvo || undefined
+          })
+        });
+        const res = await resp.json();
+
+        if (res.sucesso && res.promptParaIA) {
+          navigator.clipboard.writeText(res.promptParaIA).then(() => {
+            const toast = document.getElementById('toast-sucesso');
+            toast.innerText = "🎯 Ordem cirúrgica copiada! Itens já feitos ou ignorados foram omitidos para poupar tokens da sua IA.";
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+          });
+        } else {
+          alert("Erro: " + (res.erro || "Falha ao gerar ordem da mudança."));
+        }
+      } catch (err) {
+        alert("Falha de conexão com o servidor.");
+      }
+    }
+
+    // ABA 3: Carregador de Histórico e Projetos Salvos
+    async function carregarHistoricoECofre() {
+      // Projetos Salvos no Cofre (Caixinhas Individuais com Linha do Tempo e Diff)
+      const divCofre = document.getElementById('conteudo-projetos-cofre');
+      try {
+        const respP = await fetch('/api/projetos');
+        const projs = await respP.json();
+        
+        if (!projs || projs.length === 0) {
+          divCofre.innerHTML = '<p style="color:#94a3b8; font-size:0.9rem;">Nenhum projeto salvo no cofre ainda. Digite o caminho de uma pasta acima e clique em "⚡ Analisar" para inaugurar o seu cofre!</p>';
+        } else {
+          divCofre.innerHTML = projs.map(p => {
+            const nomeLower = (p.nome || '').toLowerCase();
+            let icone = '📦';
+            if (nomeLower.includes('obra') || nomeLower.includes('construcao')) icone = '🏗️';
+            else if (nomeLower.includes('ball') || nomeLower.includes('pelada') || nomeLower.includes('futebol')) icone = '⚽';
+            else if (nomeLower.includes('psico') || nomeLower.includes('mente') || nomeLower.includes('saude')) icone = '🧠';
+            else if (nomeLower.includes('mapa') || nomeLower.includes('contexto')) icone = '🧭';
+
+            const versoes = p.versoes || [];
+            const totalVersoes = versoes.length || p.totalVersoes || 1;
+            const dataUltima = p.ultimaAnalise 
+              ? new Date(p.ultimaAnalise).toLocaleDateString('pt-BR') + ' às ' + new Date(p.ultimaAnalise).toLocaleTimeString('pt-BR')
+              : 'Sem data';
+
+            const caminhoEscaped = (p.caminho || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+            return `
+              <div class="caixa-projeto" id="caixa-${p.id}">
+                <!-- Topo da Caixinha: Ícone, Nome, Badge e Caminho -->
+                <div class="caixa-projeto-topo">
+                  <div class="caixa-projeto-identificacao">
+                    <div class="caixa-projeto-icone">${icone}</div>
+                    <div>
+                      <div class="caixa-projeto-nome">
+                        <span>${p.nome}</span>
+                        <span class="badge-versoes">📸 ${totalVersoes} ${totalVersoes === 1 ? 'leitura salva' : 'leituras salvas'}</span>
+                      </div>
+                      <div class="caixa-projeto-caminho">${p.caminho}</div>
+                    </div>
+                  </div>
+                  <div class="caixa-projeto-botoes">
+                    <button class="btn-acao-caixa btn-acao-abrir" onclick="document.getElementById('caminho').value='${caminhoEscaped}'; iniciarAnalise();">
+                      ⚡ Abrir Projeto Agora
+                    </button>
+                    ${totalVersoes > 0 ? `
+                      <button id="btn-toggle-proj-${p.id}" data-total="${totalVersoes}" class="btn-acao-caixa btn-acao-versoes" onclick="toggleVersoesProjeto('${p.id}', ${totalVersoes})">
+                        📜 Ver Versões Salvas (${totalVersoes})
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+
+                <!-- Resumo Rápido da Última Análise (Mini KPIs) -->
+                <div class="caixa-projeto-resumo">
+                  <div class="mini-kpis-projeto">
+                    <div class="mini-kpi">📁 Arquivos: <strong>${p.totalArquivos || 0}</strong></div>
+                    <div class="mini-kpi">⚡ Funções/Nós: <strong>${p.totalNos || 0}</strong></div>
+                    <div class="mini-kpi ${p.totalAlertasCusto > 0 ? 'alerta-banco' : ''}">💸 Alertas Banco: <strong>${p.totalAlertasCusto || 0}</strong></div>
+                    <div class="mini-kpi ${p.totalFormulariosSemCache > 0 ? 'alerta-forms' : ''}">📝 Sem Rascunho: <strong>${p.totalFormulariosSemCache || 0}</strong></div>
+                  </div>
+                  <div style="font-size:0.78rem; color:#94a3b8;">
+                    🕒 Última leitura: <strong style="color:#cbd5e1;">${dataUltima}</strong>
+                  </div>
+                </div>
+
+                <!-- Gaveta Expansível com Todas as Versões daquele Projeto -->
+                <div id="versoes-proj-${p.id}" class="caixa-versoes-container">
+                  <!-- Comparador Máquina do Tempo Embutido -->
+                  <div id="diff-proj-${p.id}"></div>
+
+                  <div class="linha-tempo-titulo">
+                    <span>📜 Linha do Tempo de Versões Gravadas (${totalVersoes})</span>
+                    <span style="font-size:0.75rem; text-transform:none; font-weight:normal;">Clique em qualquer versão para inspecionar</span>
+                  </div>
+                  ${versoes.map((v, idx) => {
+                    const isRecente = idx === 0;
+                    const dataV = new Date(v.timestamp).toLocaleDateString('pt-BR') + ' às ' + new Date(v.timestamp).toLocaleTimeString('pt-BR');
+                    return `
+                      <div class="linha-tempo-item">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                          <span class="tag-versao-numero ${isRecente ? 'recente' : ''}">
+                            Versão ${v.versaoNumero || (totalVersoes - idx)} ${isRecente ? '• Atual' : ''}
+                          </span>
+                          <span style="font-size:0.8rem; color:#cbd5e1;">📅 ${dataV}</span>
+                          <span style="font-size:0.75rem; color:#94a3b8; background:#1e293b; padding:2px 8px; border-radius:4px;">
+                            ${v.totalArquivos} arquivos | ${v.totalAlertasCusto} alertas banco | ${v.totalFormulariosSemCache} forms | ${v.totalArquivosDeus || 0} hubs
+                          </span>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                          <button class="btn-copiar-ia" style="background:#0284c7; padding:4px 10px; font-size:0.75rem;" onclick="document.getElementById('caminho').value='${caminhoEscaped}'; iniciarAnalise();">
+                            ⚡ Abrir no Painel
+                          </button>
+                          <button class="btn-copiar-ia" style="background:#334155; padding:4px 10px; font-size:0.75rem;" onclick="abrirModalRaioX('${p.id}', '${v.arquivoVersao}', '${p.nome.replace(/'/g, "\\'")}', ${v.versaoNumero || (totalVersoes - idx)})">
+                            👁️ Ver Raio-X
+                          </button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        divCofre.innerHTML = '<p style="color:#ef4444;">Falha ao carregar projetos do cofre.</p>';
+      }
+    }
+
+    // Alterna a visualização da gaveta de versões de um projeto
+    async function toggleVersoesProjeto(idProjeto, totalVersoes) {
+      const container = document.getElementById(`versoes-proj-${idProjeto}`);
+      const btn = document.getElementById(`btn-toggle-proj-${idProjeto}`);
+      const diffContainer = document.getElementById(`diff-proj-${idProjeto}`);
+      if (!container) return;
+
+      if (container.classList.contains('aberta')) {
+        container.classList.remove('aberta');
+        if (btn) {
+          btn.classList.remove('ativa');
+          const qtd = btn.getAttribute('data-total') || '';
+          btn.innerHTML = `📜 Ver Versões Salvas (${qtd})`;
+        }
+      } else {
+        container.classList.add('aberta');
+        if (btn) {
+          btn.classList.add('ativa');
+          btn.innerHTML = `▲ Ocultar Versões`;
+        }
+
+        // Carrega o comparativo das duas últimas versões se houver 2+ versões
+        if (diffContainer && totalVersoes >= 2) {
+          diffContainer.innerHTML = '<div style="font-size:0.75rem; color:#94a3b8; margin-bottom:10px;">Calculando o que mudou na última edição... ⏳</div>';
+          try {
+            const resp = await fetch(`/api/projeto/${idProjeto}/comparar`);
+            const hist = await resp.json();
+            if (hist.temHistorico && hist.resumoGeral) {
+              const r = hist.resumoGeral;
+              const d = hist.detalhes;
+              diffContainer.innerHTML = `
+                <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px 16px; margin-bottom:14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                    <strong style="color:#38bdf8; font-size:0.85rem;">🕰️ Máquina do Tempo: O que mudou entre as duas últimas versões?</strong>
+                    <span style="font-size:0.75rem; color:#94a3b8;">${new Date(hist.dataAntes).toLocaleTimeString('pt-BR')} ➔ ${new Date(hist.dataDepois).toLocaleTimeString('pt-BR')}</span>
+                  </div>
+                  <div style="display:flex; gap:10px; font-size:0.8rem; margin-bottom:8px; flex-wrap:wrap;">
+                    <span style="background:#064e3b; color:#6ee7b7; padding:2px 8px; border-radius:4px; font-weight:600;">+${r.totalArquivosCriados} criados</span>
+                    <span style="background:#0c4a6e; color:#7dd3fc; padding:2px 8px; border-radius:4px; font-weight:600;">~${r.totalArquivosModificados} modificados</span>
+                    <span style="background:#450a0a; color:#fca5a5; padding:2px 8px; border-radius:4px; font-weight:600;">-${r.totalArquivosRemovidos} removidos</span>
+                    ${r.temPerdaSeguranca ? '<span style="background:#7f1d1d; color:#fecaca; padding:2px 8px; border-radius:4px; font-weight:bold;">🚨 Trava de segurança alterada!</span>' : ''}
+                  </div>
+                  ${d.arquivosModificados?.length > 0 ? `
+                    <div style="font-size:0.78rem; color:#cbd5e1; max-height:90px; overflow-y:auto; border-top:1px solid #1e293b; padding-top:6px;">
+                      ${d.arquivosModificados.map(m => `
+                        <div style="display:flex; justify-content:space-between; padding:2px 0;">
+                          <span style="color:#f8fafc;">${m.arquivo}</span>
+                          <span style="color:${m.diferencaLinhas >= 0 ? '#38bdf8' : '#f87171'}; font-weight:600;">${m.diferencaLinhas > 0 ? '+' : ''}${m.diferencaLinhas} linhas</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            } else {
+              diffContainer.innerHTML = '';
+            }
+          } catch (e) {
+            diffContainer.innerHTML = '';
+          }
+        } else if (diffContainer) {
+          diffContainer.innerHTML = `
+            <div style="font-size:0.78rem; color:#94a3b8; margin-bottom:12px; background:#0f172a; padding:8px 12px; border-radius:6px; border:1px solid #1e293b;">
+              📸 1ª leitura registrada. Quando você fizer alterações de código com a IA, você verá aqui o relatório de arquivos criados, alterados e linhas modificadas!
+            </div>
+          `;
+        }
+      }
+    }
+
+    // Modal de Raio-X de uma Versão Específica
+    async function abrirModalRaioX(idProjeto, arquivoVersao, nomeProjeto, versaoNum) {
+      const modal = document.getElementById('modal-raio-x');
+      const titulo = document.getElementById('modal-titulo');
+      const conteudo = document.getElementById('modal-conteudo');
+      
+      titulo.innerHTML = `📸 Raio-X: ${nomeProjeto} &bull; Versão ${versaoNum}`;
+      conteudo.innerHTML = `<p style="color:#fbbf24;">Carregando dados gravados no cofre...</p>`;
+      modal.style.display = 'flex';
+
+      try {
+        const resp = await fetch(`/api/projeto/${idProjeto}/versao/${arquivoVersao}`);
+        const foto = await resp.json();
+        if (!foto || foto.erro) {
+          conteudo.innerHTML = `<p style="color:#ef4444;">Não foi possível carregar os dados desta versão.</p>`;
+          return;
+        }
+
+        const dataF = new Date(foto.timestamp).toLocaleDateString('pt-BR') + ' às ' + new Date(foto.timestamp).toLocaleTimeString('pt-BR');
+        const k = foto.kpis || {};
+
+        conteudo.innerHTML = `
+          <div style="font-size:0.85rem; color:#94a3b8; margin-bottom:16px;">
+            Data da Fotografia: <strong style="color:#f8fafc;">${dataF}</strong> | Pasta: <code>${foto.diretorioRaiz || ''}</code>
+          </div>
+          <div class="grid-kpis" style="margin-bottom:20px;">
+            <div class="kpi-card"><div class="titulo">Arquivos Mapeados</div><div class="valor">${foto.totalArquivos}</div></div>
+            <div class="kpi-card"><div class="titulo">Funções/Nós</div><div class="valor">${foto.totalNos}</div></div>
+            <div class="kpi-card destaque-vermelho"><div class="titulo">Alertas de Banco</div><div class="valor">${k.totalAlertasCustoBanco ?? 0}</div></div>
+            <div class="kpi-card destaque-amarelo"><div class="titulo">Sem Rascunho</div><div class="valor">${k.totalFormulariosSemCache ?? 0}</div></div>
+            <div class="kpi-card destaque-roxo"><div class="titulo">Hubs Centrais</div><div class="valor">${k.totalArquivosDeus ?? 0}</div></div>
+          </div>
+          <h4 style="color:#38bdf8; margin:15px 0 10px 0; font-size:0.95rem;">📁 Amostra de Arquivos Registrados nesta Versão:</h4>
+          <div style="max-height:220px; overflow-y:auto; background:#0f172a; border-radius:8px; padding:10px; border:1px solid #334155;">
+            ${(foto.arquivos || []).slice(0, 30).map(a => `
+              <div style="font-size:0.8rem; display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #1e293b;">
+                <span style="color:#f8fafc;">${a.arquivo}</span>
+                <span style="color:#94a3b8;">${a.linhas} linhas (${a.tamanhoKB} KB)</span>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-acao-caixa btn-acao-abrir" onclick="fecharModalRaioX(); document.getElementById('caminho').value='${(foto.diretorioRaiz || '').replace(/\\/g, '\\\\')}'; iniciarAnalise();">⚡ Abrir Projeto Agora</button>
+            <button class="btn-acao-caixa btn-acao-versoes" onclick="fecharModalRaioX()">Fechar</button>
+          </div>
+        `;
+      } catch (err) {
+        conteudo.innerHTML = `<p style="color:#ef4444;">Erro ao carregar detalhes do cofre.</p>`;
+      }
+    }
+
+    function fecharModalRaioX(e) {
+      if (!e || e.target.id === 'modal-raio-x' || e.type === 'click') {
+        document.getElementById('modal-raio-x').style.display = 'none';
+      }
+    }
+
+    // Inicialização automática: abre direto no Histórico e Projetos Salvos
+    window.addEventListener('DOMContentLoaded', () => {
+      trocarAba('tab-historico');
+      fetch('/api/grafo').then(r => r.json()).then(d => {
+        if (d.projetoAtual) {
+          document.getElementById('nome-projeto-ativo').innerText = d.projetoAtual.split(/[\\/]/).pop();
+        }
+      }).catch(() => {});
+    });
+  </script>
+</body>
+</html>

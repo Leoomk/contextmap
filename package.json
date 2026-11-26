@@ -1,0 +1,43 @@
+{
+  "name": "mapacontexto",
+  "version": "5.0.0",
+  "description": "Local AST-powered Context Map & MCP Server for AI coding assistants — cuts token waste, maps domino effects, detects recurring AI bugs, and enforces surgical planning before coding.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "setup:wasm": "node scripts/download-wasm.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "vibe-coding",
+    "context-map",
+    "tree-sitter",
+    "ast",
+    "cursor",
+    "claude",
+    "token-optimization",
+    "dependency-graph"
+  ],
+  "author": "Leonardo Gonçalves (@leoomk)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leoomk/mapacontexto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/leoomk/mapacontexto/issues"
+  },
+  "homepage": "https://github.com/leoomk/mapacontexto#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "express": "^5.2.1",
+    "fast-glob": "^3.3.3",
+    "ignore": "^7.0.12",
+    "is-binary-path": "^3.0.0",
+    "web-tree-sitter": "^0.20.8",
+    "zod": "^4.6.5"
+  }
+}
